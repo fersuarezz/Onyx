@@ -1,16 +1,17 @@
 package db
 
 import (
+	"context"
 	"onyx/core"
 )
 
 type DiaryDataBase interface {
-	Insert(entry core.DiaryEntry) error
+	Insert(ctx context.Context, entry core.DiaryEntry) (int, error)
 	// Devuelve las entradas de una fecha concreta. Si year = 0, devuelve de todos los años
-	GetByDate(day int, month int, year int) ([]core.DiaryEntry, error)
-	GetByMonth(month int, year int) ([]core.DiaryEntry, error)
-	Search(text string) ([]core.DiaryEntry, error)
-	Delete(id int) error
-	Edit(entry core.DiaryEntry) error
-	AllAttachments() ([]string, error)
+	GetByDate(ctx context.Context, day int, month int, year int) ([]core.DiaryEntry, error)
+	GetByMonth(ctx context.Context, month int, year int) ([]core.DiaryEntry, error)
+	Search(ctx context.Context, text string) ([]core.DiaryEntry, error)
+	Delete(ctx context.Context, id int) error
+	Edit(ctx context.Context, entry core.DiaryEntry) error
+	AllAttachments(ctx context.Context) ([]string, error)
 }

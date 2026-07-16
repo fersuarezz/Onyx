@@ -3,8 +3,8 @@ package core
 import "time"
 
 type DiaryEntry struct {
-	Id          int       `json:"id"`
+	ID          int       `json:"id"`
 	Date        time.Time `json:"date"`
 	Text        string    `json:"text"`
-	Attachments []string  `json:"attachments"` // Rutas del servidor de los adjuntos
+	Attachments []string  `json:"attachments"` // Rutas en el servidor de los adjuntos
 }
