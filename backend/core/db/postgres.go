@@ -69,3 +69,25 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, day int, month int, year
 
 	return entries, nil
 }
+
+func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]core.DiaryEntry, error) {
+	query := `	SELECT d.id, d.date, d.text, array_agg(a.dir) AS attachments
+				FROM diary_entries AS d 
+				LEFT JOIN attachments AS a ON d.id = a.entry_id 
+				WHERE d.text ILIKE $1
+				GROUP BY d.id, d.date, d.text
+				ORDER BY d.date DESC
+				LIMIT $2
+			`
+	rows, err := db.pool.Query(ctx, query, "%"+text+"%", limit)
+	if err != nil {
+		return nil, fmt.Errorf("querying diary entries: %w", err)
+	}
+
+	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[core.DiaryEntry])
+	if err != nil {
+		return nil, fmt.Errorf("parsing rows to struct: %w", err)
+	}
+
+	return entries, nil
+}
