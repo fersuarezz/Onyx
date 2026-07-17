@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"onyx/core"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -39,4 +40,32 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 	}
 
 	return id, tx.Commit(ctx)
+}
+
+func (db *PostgresDiary) GetByDate(ctx context.Context, day int, month int, year int) ([]core.DiaryEntry, error) {
+	query := `	SELECT d.id, d.date, d.text, array_agg(a.dir) AS attachments
+				FROM diary_entries AS d 
+				LEFT JOIN attachments AS a ON d.id = a.entry_id 
+				WHERE EXTRACT(DAY FROM d.date) = $1
+				AND EXTRACT(MONTH FROM d.date) = $2`
+
+	args := []any{day, month}
+	if year != 0 {
+		query += ` AND EXTRACT(YEAR FROM d.date) = $3`
+		args = append(args, year)
+	}
+
+	query += ` GROUP BY d.id, d.date, d.text`
+
+	rows, err := db.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("querying diary entries: %w", err)
+	}
+
+	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[core.DiaryEntry])
+	if err != nil {
+		return nil, fmt.Errorf("parsing rows to struct: %w", err)
+	}
+
+	return entries, nil
 }
