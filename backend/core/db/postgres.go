@@ -95,3 +95,63 @@ func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]
 
 	return entries, nil
 }
+
+func (db *PostgresDiary) Delete(ctx context.Context, id int) error {
+	query := `DELETE FROM diary_entries as d WHERE d.id = $1`
+
+	_, err := db.pool.Exec(ctx, query, id)
+	return err
+}
+
+func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) error {
+	tx, err := db.pool.Begin(ctx)
+
+	if err != nil {
+		return fmt.Errorf("pool.Begin: %w", err)
+	}
+
+	defer tx.Rollback(ctx)
+
+	query := `UPDATE diary_entries SET date = $1, text = $2 WHERE id = $3`
+
+	_, err = tx.Exec(ctx, query, entry.Date, entry.Text, entry.ID)
+
+	if err != nil {
+		return fmt.Errorf("update diary entry: %w", err)
+	}
+
+	query = `DELETE FROM attachments WHERE entry_id = $1`
+	_, err = tx.Exec(ctx, query, entry.ID)
+
+	if err != nil {
+		return fmt.Errorf("delete entry attachments: %w", err)
+	}
+
+	query = `INSERT INTO attachments (entry_id, dir) values ($1, $2)`
+	for _, att := range entry.Attachments {
+		_, err := tx.Exec(ctx, query, entry.ID, att)
+		if err != nil {
+			return fmt.Errorf("insert attachment: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (db *PostgresDiary) AllAttachments(ctx context.Context) ([]string, error) {
+	query := `SELECT dir FROM attachments`
+
+	rows, err := db.pool.Query(ctx, query)
+
+	if err != nil {
+		return nil, fmt.Errorf("getting attachments: %w", err)
+	}
+
+	atts, err := pgx.CollectRows(rows, pgx.RowTo[string])
+
+	if err != nil {
+		return nil, fmt.Errorf("parsing rows to []string: %w", err)
+	}
+
+	return atts, nil
+}
