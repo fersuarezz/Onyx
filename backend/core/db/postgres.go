@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"onyx/core"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,7 +44,7 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 }
 
 func (db *PostgresDiary) GetByDate(ctx context.Context, day int, month int, year int) ([]core.DiaryEntry, error) {
-	query := `	SELECT d.id, d.date, d.text, array_agg(a.dir) AS attachments
+	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS attachments
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE EXTRACT(DAY FROM d.date) = $1
@@ -71,7 +72,7 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, day int, month int, year
 }
 
 func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]core.DiaryEntry, error) {
-	query := `	SELECT d.id, d.date, d.text, array_agg(a.dir) AS attachments
+	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS attachments
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.text ILIKE $1
@@ -79,7 +80,10 @@ func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]
 				ORDER BY d.date DESC
 				LIMIT $2
 			`
-	rows, err := db.pool.Query(ctx, query, "%"+text+"%", limit)
+
+	var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+	rows, err := db.pool.Query(ctx, query, "%"+likeEscaper.Replace(text)+"%", limit)
 	if err != nil {
 		return nil, fmt.Errorf("querying diary entries: %w", err)
 	}
