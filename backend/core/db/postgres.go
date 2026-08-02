@@ -32,12 +32,10 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 		return 0, fmt.Errorf("insert diary entry: %w", err)
 	}
 
-	query = `INSERT INTO attachments (entry_id, dir) values ($1, $2)`
-	for _, att := range entry.Attachments {
-		_, err := tx.Exec(ctx, query, id, att)
-		if err != nil {
-			return 0, fmt.Errorf("insert attachment: %w", err)
-		}
+	err = insertAttachments(ctx, tx, id, entry.Attachments)
+
+	if err != nil {
+		return 0, err
 	}
 
 	return id, tx.Commit(ctx)
@@ -110,29 +108,29 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) error 
 		return fmt.Errorf("pool.Begin: %w", err)
 	}
 
+	id := entry.ID
+
 	defer tx.Rollback(ctx)
 
 	query := `UPDATE diary_entries SET date = $1, text = $2 WHERE id = $3`
 
-	_, err = tx.Exec(ctx, query, entry.Date, entry.Text, entry.ID)
+	_, err = tx.Exec(ctx, query, entry.Date, entry.Text, id)
 
 	if err != nil {
 		return fmt.Errorf("update diary entry: %w", err)
 	}
 
 	query = `DELETE FROM attachments WHERE entry_id = $1`
-	_, err = tx.Exec(ctx, query, entry.ID)
+	_, err = tx.Exec(ctx, query, id)
 
 	if err != nil {
 		return fmt.Errorf("delete entry attachments: %w", err)
 	}
 
-	query = `INSERT INTO attachments (entry_id, dir) values ($1, $2)`
-	for _, att := range entry.Attachments {
-		_, err := tx.Exec(ctx, query, entry.ID, att)
-		if err != nil {
-			return fmt.Errorf("insert attachment: %w", err)
-		}
+	err = insertAttachments(ctx, tx, id, entry.Attachments)
+
+	if err != nil {
+		return err
 	}
 
 	return tx.Commit(ctx)
@@ -154,4 +152,16 @@ func (db *PostgresDiary) AllAttachments(ctx context.Context) ([]string, error) {
 	}
 
 	return atts, nil
+}
+
+func insertAttachments(ctx context.Context, tx pgx.Tx, id int, attachments []string) error {
+	query := `INSERT INTO attachments (entry_id, dir) values ($1, $2)`
+	for _, att := range attachments {
+		_, err := tx.Exec(ctx, query, id, att)
+		if err != nil {
+			return fmt.Errorf("insert attachment: %w", err)
+		}
+	}
+
+	return nil
 }
