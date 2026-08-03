@@ -41,17 +41,18 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 	return id, tx.Commit(ctx)
 }
 
-func (db *PostgresDiary) GetByDate(ctx context.Context, day int, month int, year int) ([]core.DiaryEntry, error) {
+func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYear bool) ([]core.DiaryEntry, error) {
 	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS attachments
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE EXTRACT(DAY FROM d.date) = $1
 				AND EXTRACT(MONTH FROM d.date) = $2`
 
-	args := []any{day, month}
-	if year != 0 {
+	args := []any{date.Day, date.Month}
+
+	if !ignoreYear {
 		query += ` AND EXTRACT(YEAR FROM d.date) = $3`
-		args = append(args, year)
+		args = append(args, date.Year)
 	}
 
 	query += ` GROUP BY d.id, d.date, d.text`
