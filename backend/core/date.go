@@ -48,22 +48,14 @@ func DateOf(t time.Time) Date {
 	return result
 }
 
-func (date *Date) UnmarshalJSON(b []byte) error {
-	var s string
-	err := json.Unmarshal(b, &s)
-
-	if err != nil {
-		return fmt.Errorf("json inválido")
-	}
-
-	d, err := ParseDate(s)
+func (d *Date) UnmarshalText(b []byte) error {
+	parsed, err := ParseDate(string(b))
 
 	if err != nil {
 		return err
 	}
 
-	*date = d
-
+	*d = parsed
 	return nil
 }
 
