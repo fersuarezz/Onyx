@@ -40,7 +40,7 @@ func (h *Handler) Insert(c *fiber.Ctx) error {
 	id, err := h.service.Insert(ctx, entry)
 
 	if err != nil {
-		return HandleServiceError(err)
+		return HandleError(err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(InsertResponse{
@@ -56,7 +56,7 @@ func (h *Handler) GetByDate(c *fiber.Ctx) error {
 	err := c.QueryParser(&req)
 
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "parámetros inválidos")
+		return HandleError(fiber.NewError(fiber.StatusBadRequest, "parámetros inválidos"))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
@@ -65,7 +65,7 @@ func (h *Handler) GetByDate(c *fiber.Ctx) error {
 	entries, err := h.service.GetByDate(ctx, req.Date, req.IgnoreYear)
 
 	if err != nil {
-		return HandleServiceError(err)
+		return HandleError(err)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(GetByDateResponse{
@@ -74,7 +74,7 @@ func (h *Handler) GetByDate(c *fiber.Ctx) error {
 	})
 }
 
-func HandleServiceError(err error) error {
+func HandleError(err error) error {
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):
 		return fiber.NewError(fiber.StatusBadRequest, "Datos de entrada inválidos")
@@ -86,7 +86,9 @@ func HandleServiceError(err error) error {
 	case errors.Is(err, service.ErrDatabase):
 		slog.Error("error de base de datos", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
-
+	case errors.Is(err, service.ErrFileSystem):
+		slog.Error("error de file system", "err", err)
+		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
 	default:
 		slog.Error("error no controlado", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
