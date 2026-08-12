@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
-	"onyx/core"
+	"mime/multipart"
 	"onyx/service"
 	"time"
 
@@ -25,19 +27,26 @@ func (h *Handler) Insert(c *fiber.Ctx) error {
 	err := c.BodyParser(&req)
 
 	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "cuerpo inválido")
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
 	}
 
-	entry := core.DiaryEntry{
-		Date:        req.Date,
-		Text:        req.Text,
-		Attachments: req.Attachments,
+	form, err := c.MultipartForm()
+
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
 	}
+
+	files := form.File["files"]
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
 	defer cancel()
 
-	id, err := h.service.Insert(ctx, entry)
+	srcs, err := multipartsToReaders(files)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	id, err := h.service.Insert(ctx, req.Date, req.Text, srcs)
 
 	if err != nil {
 		return HandleError(err)
@@ -56,7 +65,7 @@ func (h *Handler) GetByDate(c *fiber.Ctx) error {
 	err := c.QueryParser(&req)
 
 	if err != nil {
-		return HandleError(fiber.NewError(fiber.StatusBadRequest, "parámetros inválidos"))
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", service.ErrInvalidInput))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
@@ -78,11 +87,9 @@ func HandleError(err error) error {
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):
 		return fiber.NewError(fiber.StatusBadRequest, "Datos de entrada inválidos")
-
 	case errors.Is(err, context.DeadlineExceeded):
 		slog.Error("timeout", "err", err)
 		return fiber.NewError(fiber.StatusGatewayTimeout, "La petición tardó demasiado")
-
 	case errors.Is(err, service.ErrDatabase):
 		slog.Error("error de base de datos", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
@@ -93,4 +100,19 @@ func HandleError(err error) error {
 		slog.Error("error no controlado", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
 	}
+}
+
+func multipartsToReaders(multiparts []*multipart.FileHeader) ([]io.ReadSeeker, error) {
+	var seekers []io.ReadSeeker
+
+	for _, m := range multiparts {
+		src, err := m.Open()
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", service.ErrFileSystem, err)
+		}
+		defer src.Close()
+		seekers = append(seekers, src)
+	}
+
+	return seekers, nil
 }

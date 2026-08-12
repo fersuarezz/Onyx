@@ -5,9 +5,8 @@ import (
 )
 
 type InsertRequest struct {
-	Date        core.Date `json:"date"`
-	Text        string    `json:"text"`
-	Attachments []string  `json:"attachments"`
+	Date core.Date `form:"date" json:"date"`
+	Text string    `form:"text" json:"text"`
 }
 
 type InsertResponse struct {

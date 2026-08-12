@@ -32,7 +32,7 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 		return 0, fmt.Errorf("insert diary entry: %w", err)
 	}
 
-	err = insertAttachments(ctx, tx, id, entry.Attachments)
+	err = insertAttachments(ctx, tx, id, entry.Dirs)
 
 	if err != nil {
 		return 0, err
@@ -42,7 +42,7 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 }
 
 func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYear bool) ([]core.DiaryEntry, error) {
-	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS attachments
+	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS dirs
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE EXTRACT(DAY FROM d.date) = $1
@@ -71,7 +71,7 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYe
 }
 
 func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]core.DiaryEntry, error) {
-	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS attachments
+	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS dirs
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.text ILIKE $1
@@ -128,7 +128,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) error 
 		return fmt.Errorf("delete entry attachments: %w", err)
 	}
 
-	err = insertAttachments(ctx, tx, id, entry.Attachments)
+	err = insertAttachments(ctx, tx, id, entry.Dirs)
 
 	if err != nil {
 		return err
