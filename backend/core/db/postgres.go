@@ -32,7 +32,7 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 		return 0, fmt.Errorf("insert diary entry: %w", err)
 	}
 
-	err = insertAttachments(ctx, tx, id, entry.Dirs)
+	err = insertAttachments(ctx, tx, id, entry.Keys)
 
 	if err != nil {
 		return 0, err
@@ -42,20 +42,27 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 }
 
 func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYear bool) ([]core.DiaryEntry, error) {
-	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS dirs
+	query := ``
+	args := []any{}
+
+	if ignoreYear {
+		query = `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE EXTRACT(DAY FROM d.date) = $1
-				AND EXTRACT(MONTH FROM d.date) = $2`
-
-	args := []any{date.Day, date.Month}
-
-	if !ignoreYear {
-		query += ` AND EXTRACT(YEAR FROM d.date) = $3`
-		args = append(args, date.Year)
+				AND EXTRACT(MONTH FROM d.date) = $2
+				GROUP BY d.id, d.date, d.text
+				ORDER BY d.date, d.id DESC`
+		args = []any{date.Day, date.Month}
+	} else {
+		query = `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
+				FROM diary_entries AS d 
+				LEFT JOIN attachments AS a ON d.id = a.entry_id 
+				WHERE d.date = $1
+				GROUP BY d.id, d.date, d.text
+				ORDER BY d.date, d.id DESC`
+		args = []any{date}
 	}
-
-	query += ` GROUP BY d.id, d.date, d.text`
 
 	rows, err := db.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -76,7 +83,7 @@ func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.text ILIKE $1
 				GROUP BY d.id, d.date, d.text
-				ORDER BY d.date DESC
+				ORDER BY d.date, d.id DESC
 				LIMIT $2
 			`
 

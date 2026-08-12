@@ -55,12 +55,16 @@ func (d *DiaryService) deleteAttachmentFolder(key string) error {
 }
 
 func (d *DiaryService) saveAttachment(src io.ReadSeeker) (string, error) {
-	key := uuid.NewString()
-	tempFolder := filepath.Join(d.MediaRoot, tempDir, key)
+	key, err := uuid.NewV7()
+	if err != nil {
+		return "", fmt.Errorf("generando uui7: %w", err)
+	}
+
+	tempFolder := filepath.Join(d.MediaRoot, tempDir, key.String())
 	full := filepath.Join(tempFolder, imgFull)
 	thumbnail := filepath.Join(tempFolder, imgThumb)
 
-	err := os.MkdirAll(tempFolder, 0o755)
+	err = os.MkdirAll(tempFolder, 0o755)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
 	}
