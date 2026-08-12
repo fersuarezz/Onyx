@@ -56,7 +56,6 @@ func (h *Handler) Insert(c *fiber.Ctx) error {
 		CreatedId: id,
 		Response:  "ok",
 	})
-
 }
 
 func (h *Handler) GetByDate(c *fiber.Ctx) error {

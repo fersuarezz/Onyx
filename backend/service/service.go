@@ -3,17 +3,140 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"onyx/core"
 	"onyx/core/db"
+	"os"
+	"path/filepath"
+
+	"github.com/google/uuid"
 )
 
+const imgFull = "full.jpg"
+const imgThumb = "thumbnail.jpg"
+const tempDir = ".temp"
+
 type DiaryService struct {
-	Diary db.DiaryDataBase
+	Diary     db.DiaryDataBase
+	MediaRoot string
 }
 
-func (d *DiaryService) Insert(ctx context.Context, entry core.DiaryEntry) (int, error) {
-	if entry.Date.IsZero() || (entry.Text == "" && len(entry.Attachments) == 0) {
+func (d *DiaryService) saveAttachments(srcs []io.ReadSeeker) ([]string, error) {
+	var dirs []string
+
+	for _, src := range srcs {
+		dir, err := d.saveAttachment(src)
+		if err != nil {
+			for _, v := range dirs {
+				err2 := d.deleteAttachmentFolder(v)
+				if err2 != nil {
+					slog.Error("no se pudo borrar el adjunto", "key", v, "err", err2)
+				}
+			}
+
+			return nil, err
+		}
+
+		dirs = append(dirs, dir)
+	}
+
+	return dirs, nil
+}
+
+func (d *DiaryService) deleteAttachmentFolder(key string) error {
+	folder := filepath.Join(d.MediaRoot, key)
+
+	err := os.RemoveAll(folder)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+	return nil
+}
+
+func (d *DiaryService) saveAttachment(src io.ReadSeeker) (string, error) {
+	key := uuid.NewString()
+	tempFolder := filepath.Join(d.MediaRoot, tempDir, key)
+	full := filepath.Join(tempFolder, imgFull)
+	thumbnail := filepath.Join(tempFolder, imgThumb)
+
+	err := os.MkdirAll(tempFolder, 0o755)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	defer os.RemoveAll(tempFolder) // Rollback
+
+	// Guardar imagen full
+	dst, err := os.Create(full)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	// Guardar thummbnail
+	dst2, err := os.Create(thumbnail)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	_, err = src.Seek(0, io.SeekStart)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+	th, err := Thumbnail(src)
+	if err != nil {
+		return "", err
+	}
+
+	defer dst2.Close()
+
+	_, err = io.Copy(dst2, th)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	// Rename folder
+	err = dst.Close()
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	err = dst2.Close()
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	finalFolder := filepath.Join(d.MediaRoot, key)
+
+	err = os.Rename(tempFolder, finalFolder)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	return filepath.ToSlash(key), nil
+}
+
+func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, srcs []io.ReadSeeker) (int, error) {
+	if date.IsZero() || (text == "" && len(srcs) == 0) {
 		return -1, fmt.Errorf("%w: entry inválido", ErrInvalidInput)
+	}
+
+	dirs, err := d.saveAttachments(srcs)
+	if err != nil {
+		return -1, err
+	}
+
+	entry := core.DiaryEntry{
+		Date: date,
+		Text: text,
+		Dirs: dirs,
 	}
 
 	id, err := d.Diary.Insert(ctx, entry)
