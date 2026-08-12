@@ -6,7 +6,7 @@ CREATE TABLE diary_entries (
 
 CREATE TABLE attachments (
     entry_id INT NOT NULL,
-    dir TEXT NOT NULL,
-    PRIMARY KEY (entry_id, dir),
+    key TEXT NOT NULL,
+    PRIMARY KEY (entry_id, key),
     FOREIGN KEY (entry_id) REFERENCES diary_entries (id) ON DELETE CASCADE
 );

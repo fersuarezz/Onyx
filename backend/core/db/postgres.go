@@ -71,7 +71,7 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYe
 }
 
 func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]core.DiaryEntry, error) {
-	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.dir) FILTER (WHERE a.dir is not NULL), '{}') AS dirs
+	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.text ILIKE $1
@@ -128,7 +128,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) error 
 		return fmt.Errorf("delete entry attachments: %w", err)
 	}
 
-	err = insertAttachments(ctx, tx, id, entry.Dirs)
+	err = insertAttachments(ctx, tx, id, entry.Keys)
 
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) error 
 }
 
 func (db *PostgresDiary) AllAttachments(ctx context.Context) ([]string, error) {
-	query := `SELECT dir FROM attachments`
+	query := `SELECT key FROM attachments`
 
 	rows, err := db.pool.Query(ctx, query)
 
@@ -156,7 +156,7 @@ func (db *PostgresDiary) AllAttachments(ctx context.Context) ([]string, error) {
 }
 
 func insertAttachments(ctx context.Context, tx pgx.Tx, id int, attachments []string) error {
-	query := `INSERT INTO attachments (entry_id, dir) values ($1, $2)`
+	query := `INSERT INTO attachments (entry_id, key) values ($1, $2)`
 	for _, att := range attachments {
 		_, err := tx.Exec(ctx, query, id, att)
 		if err != nil {

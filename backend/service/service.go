@@ -23,12 +23,12 @@ type DiaryService struct {
 }
 
 func (d *DiaryService) saveAttachments(srcs []io.ReadSeeker) ([]string, error) {
-	var dirs []string
+	var keys []string
 
 	for _, src := range srcs {
-		dir, err := d.saveAttachment(src)
+		key, err := d.saveAttachment(src)
 		if err != nil {
-			for _, v := range dirs {
+			for _, v := range keys {
 				err2 := d.deleteAttachmentFolder(v)
 				if err2 != nil {
 					slog.Error("no se pudo borrar el adjunto", "key", v, "err", err2)
@@ -38,10 +38,10 @@ func (d *DiaryService) saveAttachments(srcs []io.ReadSeeker) ([]string, error) {
 			return nil, err
 		}
 
-		dirs = append(dirs, dir)
+		keys = append(keys, key)
 	}
 
-	return dirs, nil
+	return keys, nil
 }
 
 func (d *DiaryService) deleteAttachmentFolder(key string) error {
@@ -113,14 +113,14 @@ func (d *DiaryService) saveAttachment(src io.ReadSeeker) (string, error) {
 		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
 	}
 
-	finalFolder := filepath.Join(d.MediaRoot, key)
+	finalFolder := filepath.Join(d.MediaRoot, key.String())
 
 	err = os.Rename(tempFolder, finalFolder)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
 	}
 
-	return filepath.ToSlash(key), nil
+	return key.String(), nil
 }
 
 func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, srcs []io.ReadSeeker) (int, error) {
@@ -128,7 +128,7 @@ func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, 
 		return -1, fmt.Errorf("%w: entry inválido", ErrInvalidInput)
 	}
 
-	dirs, err := d.saveAttachments(srcs)
+	keys, err := d.saveAttachments(srcs)
 	if err != nil {
 		return -1, err
 	}
@@ -136,7 +136,7 @@ func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, 
 	entry := core.DiaryEntry{
 		Date: date,
 		Text: text,
-		Dirs: dirs,
+		Keys: keys,
 	}
 
 	id, err := d.Diary.Insert(ctx, entry)
