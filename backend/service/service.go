@@ -165,3 +165,16 @@ func (d *DiaryService) GetByDate(ctx context.Context, date core.Date, ignoreYear
 
 	return entries, nil
 }
+
+func (d *DiaryService) Search(ctx context.Context, text string, limit int) ([]core.DiaryEntry, error) {
+	if limit < 1 || limit > 100 {
+		return nil, fmt.Errorf("%w: limit debe estar entre 1 y 100", ErrInvalidInput)
+	}
+
+	entries, err := d.Diary.Search(ctx, text, limit)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrDatabase, err)
+	}
+
+	return entries, nil
+}

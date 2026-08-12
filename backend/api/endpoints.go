@@ -54,7 +54,6 @@ func (h *Handler) Insert(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(InsertResponse{
 		CreatedId: id,
-		Response:  "ok",
 	})
 }
 
@@ -77,8 +76,29 @@ func (h *Handler) GetByDate(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(GetByDateResponse{
-		Entries:  entries,
-		Response: "ok",
+		Entries: entries,
+	})
+}
+
+func (h *Handler) Search(c *fiber.Ctx) error {
+	var req SearchRequest
+
+	err := c.QueryParser(&req)
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", service.ErrInvalidInput))
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
+	defer cancel()
+
+	entries, err := h.service.Search(ctx, req.Text, req.Limit)
+
+	if err != nil {
+		return HandleError(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(SearchResponse{
+		Entries: entries,
 	})
 }
 

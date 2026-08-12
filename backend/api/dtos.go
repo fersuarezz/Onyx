@@ -10,8 +10,7 @@ type InsertRequest struct {
 }
 
 type InsertResponse struct {
-	CreatedId int    `json:"created_id"`
-	Response  string `json:"response"`
+	CreatedId int `json:"created_id"`
 }
 
 type GetByDateRequest struct {
@@ -20,6 +19,14 @@ type GetByDateRequest struct {
 }
 
 type GetByDateResponse struct {
-	Entries  []core.DiaryEntry `json:"entries"`
-	Response string            `json:"response"`
+	Entries []core.DiaryEntry `json:"entries"`
+}
+
+type SearchRequest struct {
+	Text  string `query:"text"`
+	Limit int    `query:"limit"`
+}
+
+type SearchResponse struct {
+	Entries []core.DiaryEntry `json:"entries"`
 }

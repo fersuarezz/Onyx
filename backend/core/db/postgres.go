@@ -52,7 +52,7 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYe
 				WHERE EXTRACT(DAY FROM d.date) = $1
 				AND EXTRACT(MONTH FROM d.date) = $2
 				GROUP BY d.id, d.date, d.text
-				ORDER BY d.date, d.id DESC`
+				ORDER BY d.date DESC, d.id DESC`
 		args = []any{date.Day, date.Month}
 	} else {
 		query = `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
@@ -60,7 +60,7 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYe
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.date = $1
 				GROUP BY d.id, d.date, d.text
-				ORDER BY d.date, d.id DESC`
+				ORDER BY d.date DESC, d.id DESC`
 		args = []any{date}
 	}
 
@@ -77,17 +77,17 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYe
 	return entries, nil
 }
 
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
 func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]core.DiaryEntry, error) {
 	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.text ILIKE $1
 				GROUP BY d.id, d.date, d.text
-				ORDER BY d.date, d.id DESC
+				ORDER BY d.date DESC, d.id DESC
 				LIMIT $2
 			`
-
-	var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 	rows, err := db.pool.Query(ctx, query, "%"+likeEscaper.Replace(text)+"%", limit)
 	if err != nil {
