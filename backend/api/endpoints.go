@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"mime/multipart"
+	"onyx/core/db"
 	"onyx/service"
 	"time"
 
@@ -102,6 +103,25 @@ func (h *Handler) Search(c *fiber.Ctx) error {
 	})
 }
 
+func (h *Handler) Delete(c *fiber.Ctx) error {
+	var req DeleteRequest
+
+	err := c.BodyParser(&req)
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", service.ErrInvalidInput))
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
+	defer cancel()
+
+	err = h.service.Delete(ctx, req.Id)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func HandleError(err error) error {
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):
@@ -115,6 +135,9 @@ func HandleError(err error) error {
 	case errors.Is(err, service.ErrFileSystem):
 		slog.Error("error de file system", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
+	case errors.Is(err, db.ErrNotFound):
+		slog.Error("DB 404", "err", err)
+		return fiber.NewError(fiber.StatusNotFound, "Archivo no encontrado")
 	default:
 		slog.Error("error no controlado", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")

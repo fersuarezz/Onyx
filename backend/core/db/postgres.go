@@ -102,11 +102,45 @@ func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]
 	return entries, nil
 }
 
-func (db *PostgresDiary) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM diary_entries as d WHERE d.id = $1`
+func (db *PostgresDiary) Delete(ctx context.Context, id int) ([]string, error) {
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pool.Begin: %w", err)
+	}
 
-	_, err := db.pool.Exec(ctx, query, id)
-	return err
+	defer tx.Rollback(ctx)
+
+	query := `SELECT key
+			FROM attachments AS a
+			WHERE a.entry_id = $1`
+
+	rows, err := tx.Query(ctx, query, id)
+	if err != nil {
+		return nil, fmt.Errorf("recuperando las keys de las filas para borrar: %w", err)
+	}
+
+	keys, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("parseando las keys de las filas para borrar: %w", err)
+	}
+
+	query = `DELETE FROM diary_entries as d WHERE d.id = $1`
+
+	tag, err := tx.Exec(ctx, query, id)
+	if err != nil {
+		return nil, fmt.Errorf("borrando las entradas: %w", err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return nil, ErrNotFound
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("commiteando tx: %w", err)
+	}
+
+	return keys, nil
 }
 
 func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) error {

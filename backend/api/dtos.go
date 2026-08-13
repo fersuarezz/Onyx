@@ -30,3 +30,7 @@ type SearchRequest struct {
 type SearchResponse struct {
 	Entries []core.DiaryEntry `json:"entries"`
 }
+
+type DeleteRequest struct {
+	Id int `query:"id" json:"id"`
+}

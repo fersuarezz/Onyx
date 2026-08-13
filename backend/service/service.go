@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -177,4 +178,23 @@ func (d *DiaryService) Search(ctx context.Context, text string, limit int) ([]co
 	}
 
 	return entries, nil
+}
+
+func (d *DiaryService) Delete(ctx context.Context, id int) error {
+	keys, err := d.Diary.Delete(ctx, id)
+
+	if errors.Is(err, db.ErrNotFound) {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrDatabase, err)
+	}
+
+	for _, key := range keys {
+		err = d.deleteAttachmentFolder(key)
+		if err != nil {
+			slog.Error("no se pudo borrar el adjunto", "key", key, "err", err)
+		}
+	}
+	return nil
 }
