@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(gofmt -l .)",
-      "Bash(gofmt -d api/dtos.go)"
-    ]
-  }
-}
