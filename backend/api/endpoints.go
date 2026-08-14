@@ -122,6 +122,36 @@ func (h *Handler) Delete(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+func (h *Handler) Edit(c *fiber.Ctx) error {
+	var req EditRequest
+
+	err := c.BodyParser(&req)
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
+	}
+
+	files := form.File["files"]
+	srcs, err := multipartsToReaders(files)
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
+	defer cancel()
+
+	err = h.service.Edit(ctx, req.Id, req.Date, req.Text, srcs)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 func HandleError(err error) error {
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):

@@ -19,8 +19,8 @@ const imgThumb = "thumbnail.jpg"
 const tempDir = ".temp"
 
 type DiaryService struct {
-	Diary     db.DiaryDataBase
-	MediaRoot string
+	diary     db.DiaryDataBase
+	mediaRoot string
 }
 
 func (d *DiaryService) saveAttachments(srcs []io.ReadSeeker) ([]string, error) {
@@ -29,12 +29,7 @@ func (d *DiaryService) saveAttachments(srcs []io.ReadSeeker) ([]string, error) {
 	for _, src := range srcs {
 		key, err := d.saveAttachment(src)
 		if err != nil {
-			for _, v := range keys {
-				err2 := d.deleteAttachmentFolder(v)
-				if err2 != nil {
-					slog.Error("no se pudo borrar el adjunto", "key", v, "err", err2)
-				}
-			}
+			d.deleteAttachmentFolders(keys)
 
 			return nil, err
 		}
@@ -46,7 +41,7 @@ func (d *DiaryService) saveAttachments(srcs []io.ReadSeeker) ([]string, error) {
 }
 
 func (d *DiaryService) deleteAttachmentFolder(key string) error {
-	folder := filepath.Join(d.MediaRoot, key)
+	folder := filepath.Join(d.mediaRoot, key)
 
 	err := os.RemoveAll(folder)
 	if err != nil {
@@ -55,13 +50,22 @@ func (d *DiaryService) deleteAttachmentFolder(key string) error {
 	return nil
 }
 
+func (d *DiaryService) deleteAttachmentFolders(keys []string) {
+	for _, v := range keys {
+		err := d.deleteAttachmentFolder(v)
+		if err != nil {
+			slog.Error("no se pudo borrar el adjunto", "key", v, "err", err)
+		}
+	}
+}
+
 func (d *DiaryService) saveAttachment(src io.ReadSeeker) (string, error) {
 	key, err := uuid.NewV7()
 	if err != nil {
 		return "", fmt.Errorf("generando uui7: %w", err)
 	}
 
-	tempFolder := filepath.Join(d.MediaRoot, tempDir, key.String())
+	tempFolder := filepath.Join(d.mediaRoot, tempDir, key.String())
 	full := filepath.Join(tempFolder, imgFull)
 	thumbnail := filepath.Join(tempFolder, imgThumb)
 
@@ -118,7 +122,7 @@ func (d *DiaryService) saveAttachment(src io.ReadSeeker) (string, error) {
 		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
 	}
 
-	finalFolder := filepath.Join(d.MediaRoot, key.String())
+	finalFolder := filepath.Join(d.mediaRoot, key.String())
 
 	err = os.Rename(tempFolder, finalFolder)
 	if err != nil {
@@ -144,9 +148,9 @@ func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, 
 		Keys: keys,
 	}
 
-	id, err := d.Diary.Insert(ctx, entry)
-
+	id, err := d.diary.Insert(ctx, entry)
 	if err != nil {
+		d.deleteAttachmentFolders(keys)
 		return -1, fmt.Errorf("%w: %w", ErrDatabase, err)
 	}
 
@@ -158,7 +162,7 @@ func (d *DiaryService) GetByDate(ctx context.Context, date core.Date, ignoreYear
 		return nil, fmt.Errorf("%w: fecha inválida", ErrInvalidInput)
 	}
 
-	entries, err := d.Diary.GetByDate(ctx, date, ignoreYear)
+	entries, err := d.diary.GetByDate(ctx, date, ignoreYear)
 
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrDatabase, err)
@@ -172,7 +176,7 @@ func (d *DiaryService) Search(ctx context.Context, text string, limit int) ([]co
 		return nil, fmt.Errorf("%w: limit debe estar entre 1 y 100", ErrInvalidInput)
 	}
 
-	entries, err := d.Diary.Search(ctx, text, limit)
+	entries, err := d.diary.Search(ctx, text, limit)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrDatabase, err)
 	}
@@ -181,20 +185,49 @@ func (d *DiaryService) Search(ctx context.Context, text string, limit int) ([]co
 }
 
 func (d *DiaryService) Delete(ctx context.Context, id int) error {
-	keys, err := d.Diary.Delete(ctx, id)
-
-	if errors.Is(err, db.ErrNotFound) {
-		return err
-	}
+	keys, err := d.diary.Delete(ctx, id)
 	if err != nil {
+		if errors.Is(err, db.ErrNotFound) {
+			return err
+		}
+
 		return fmt.Errorf("%w: %w", ErrDatabase, err)
 	}
 
-	for _, key := range keys {
-		err = d.deleteAttachmentFolder(key)
-		if err != nil {
-			slog.Error("no se pudo borrar el adjunto", "key", key, "err", err)
-		}
+	d.deleteAttachmentFolders(keys)
+
+	return nil
+}
+
+func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text string, srcs []io.ReadSeeker) error {
+	if date.IsZero() || (text == "" && len(srcs) == 0) {
+		return fmt.Errorf("%w: entry inválido", ErrInvalidInput)
 	}
+
+	keys, err := d.saveAttachments(srcs)
+	if err != nil {
+		return err
+	}
+
+	entry := core.DiaryEntry{
+		ID:   id,
+		Text: text,
+		Date: date,
+		Keys: keys,
+	}
+
+	orphaned, err := d.diary.Edit(ctx, entry)
+	if err != nil {
+		d.deleteAttachmentFolders(keys)
+
+		if errors.Is(err, db.ErrNotFound) {
+			return err
+		}
+
+		return fmt.Errorf("%w: %w", ErrDatabase, err)
+	}
+
+	d.deleteAttachmentFolders(orphaned)
+
 	return nil
 }

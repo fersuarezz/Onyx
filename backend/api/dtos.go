@@ -34,3 +34,9 @@ type SearchResponse struct {
 type DeleteRequest struct {
 	Id int `query:"id" json:"id"`
 }
+
+type EditRequest struct {
+	Id   int       `form:"id" json:"id"`
+	Date core.Date `form:"date" json:"date"`
+	Text string    `form:"text" json:"text"`
+}
