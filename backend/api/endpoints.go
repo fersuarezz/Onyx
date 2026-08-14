@@ -26,13 +26,11 @@ func (h *Handler) Insert(c *fiber.Ctx) error {
 	var req InsertRequest
 
 	err := c.BodyParser(&req)
-
 	if err != nil {
 		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
 	}
 
 	form, err := c.MultipartForm()
-
 	if err != nil {
 		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
 	}
@@ -92,7 +90,7 @@ func (h *Handler) Search(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
 	defer cancel()
 
-	entries, err := h.service.Search(ctx, req.Text, req.Limit)
+	entries, hasMore, err := h.service.Search(ctx, req.Text, req.Limit, req.Offset)
 
 	if err != nil {
 		return HandleError(err)
@@ -100,6 +98,7 @@ func (h *Handler) Search(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(SearchResponse{
 		Entries: entries,
+		HasMore: hasMore,
 	})
 }
 

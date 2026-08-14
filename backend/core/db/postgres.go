@@ -79,27 +79,32 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYe
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
-func (db *PostgresDiary) Search(ctx context.Context, text string, limit int) ([]core.DiaryEntry, error) {
+func (db *PostgresDiary) Search(ctx context.Context, text string, limit int, offset int) ([]core.DiaryEntry, bool, error) {
 	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.text ILIKE $1
 				GROUP BY d.id, d.date, d.text
 				ORDER BY d.date DESC, d.id DESC
-				LIMIT $2
+				LIMIT $2 OFFSET $3
 			`
 
-	rows, err := db.pool.Query(ctx, query, "%"+likeEscaper.Replace(text)+"%", limit)
+	rows, err := db.pool.Query(ctx, query, "%"+likeEscaper.Replace(text)+"%", limit+1, offset)
 	if err != nil {
-		return nil, fmt.Errorf("querying diary entries: %w", err)
+		return nil, false, fmt.Errorf("querying diary entries: %w", err)
 	}
 
 	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[core.DiaryEntry])
 	if err != nil {
-		return nil, fmt.Errorf("parsing rows to struct: %w", err)
+		return nil, false, fmt.Errorf("parsing rows to struct: %w", err)
 	}
 
-	return entries, nil
+	hasMore := len(entries) > limit
+	if hasMore {
+		entries = entries[:limit]
+	}
+
+	return entries, hasMore, nil
 }
 
 func (db *PostgresDiary) Delete(ctx context.Context, id int) ([]string, error) {
@@ -186,22 +191,30 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) ([]str
 	return orphans, tx.Commit(ctx)
 }
 
-func (db *PostgresDiary) AllAttachments(ctx context.Context) ([]string, error) {
-	query := `SELECT key FROM attachments`
+func (db *PostgresDiary) AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error) {
+	query := `SELECT a.key FROM attachments AS a
+			JOIN diary_entries AS d ON a.entry_id = d.id
+			ORDER BY d.date DESC, d.id DESC 
+			LIMIT $1 OFFSET $2`
 
-	rows, err := db.pool.Query(ctx, query)
+	rows, err := db.pool.Query(ctx, query, limit+1, offset)
 
 	if err != nil {
-		return nil, fmt.Errorf("getting attachments: %w", err)
+		return nil, false, fmt.Errorf("getting attachments: %w", err)
 	}
 
 	atts, err := pgx.CollectRows(rows, pgx.RowTo[string])
 
 	if err != nil {
-		return nil, fmt.Errorf("parsing rows to []string: %w", err)
+		return nil, false, fmt.Errorf("parsing rows to []string: %w", err)
 	}
 
-	return atts, nil
+	hasMore := len(atts) > limit
+	if hasMore {
+		atts = atts[:limit]
+	}
+
+	return atts, hasMore, nil
 }
 
 func insertAttachments(ctx context.Context, tx pgx.Tx, id int, attachments []string) error {

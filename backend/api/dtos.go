@@ -23,12 +23,14 @@ type GetByDateResponse struct {
 }
 
 type SearchRequest struct {
-	Text  string `query:"text"`
-	Limit int    `query:"limit"`
+	Text   string `query:"text"`
+	Limit  int    `query:"limit"`
+	Offset int    `query:"offset"`
 }
 
 type SearchResponse struct {
 	Entries []core.DiaryEntry `json:"entries"`
+	HasMore bool              `json:"has_more"`
 }
 
 type DeleteRequest struct {

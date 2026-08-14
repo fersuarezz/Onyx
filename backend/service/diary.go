@@ -171,17 +171,20 @@ func (d *DiaryService) GetByDate(ctx context.Context, date core.Date, ignoreYear
 	return entries, nil
 }
 
-func (d *DiaryService) Search(ctx context.Context, text string, limit int) ([]core.DiaryEntry, error) {
+func (d *DiaryService) Search(ctx context.Context, text string, limit int, offset int) ([]core.DiaryEntry, bool, error) {
 	if limit < 1 || limit > 100 {
-		return nil, fmt.Errorf("%w: limit debe estar entre 1 y 100", ErrInvalidInput)
+		return nil, false, fmt.Errorf("%w: limit debe estar entre 1 y 100", ErrInvalidInput)
+	}
+	if offset < 0 {
+		return nil, false, fmt.Errorf("%w: offset debe ser positivo", ErrInvalidInput)
 	}
 
-	entries, err := d.diary.Search(ctx, text, limit)
+	entries, hasMore, err := d.diary.Search(ctx, text, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrDatabase, err)
+		return nil, false, fmt.Errorf("%w: %w", ErrDatabase, err)
 	}
 
-	return entries, nil
+	return entries, hasMore, nil
 }
 
 func (d *DiaryService) Delete(ctx context.Context, id int) error {
