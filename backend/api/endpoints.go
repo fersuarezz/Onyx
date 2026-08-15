@@ -158,6 +158,28 @@ func (h *Handler) Edit(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+func (h *Handler) AllAttachments(c *fiber.Ctx) error {
+	var req AllAttachmentsRequest
+
+	err := c.QueryParser(&req)
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: query inválida", service.ErrInvalidInput))
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
+	defer cancel()
+
+	keys, hasMore, err := h.service.AllAttachments(ctx, req.Limit, req.Offset)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(AllAttachmentsResponse{
+		Keys:    keys,
+		HasMore: hasMore,
+	})
+}
+
 func HandleError(err error) error {
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):

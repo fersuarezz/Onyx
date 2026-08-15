@@ -234,3 +234,19 @@ func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text st
 
 	return nil
 }
+
+func (d *DiaryService) AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error) {
+	if limit < 1 || limit > 100 {
+		return nil, false, fmt.Errorf("%w: limit debe estar entre 1 y 100", ErrInvalidInput)
+	}
+	if offset < 0 {
+		return nil, false, fmt.Errorf("%w: offset debe ser positivo", ErrInvalidInput)
+	}
+
+	keys, hasMore, err := d.diary.AllAttachments(ctx, limit, offset)
+	if err != nil {
+		return nil, false, fmt.Errorf("%w: %w", ErrDatabase, err)
+	}
+
+	return keys, hasMore, nil
+}

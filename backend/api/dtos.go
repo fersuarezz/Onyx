@@ -42,3 +42,8 @@ type AllAttachmentsRequest struct {
 	Limit  int `query:"limit"`
 	Offset int `query:"offset"`
 }
+
+type AllAttachmentsResponse struct {
+	Keys    []string `json:"keys"`
+	HasMore bool     `json:"has_more"`
+}

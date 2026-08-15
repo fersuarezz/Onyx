@@ -194,7 +194,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) ([]str
 func (db *PostgresDiary) AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error) {
 	query := `SELECT a.key FROM attachments AS a
 			JOIN diary_entries AS d ON a.entry_id = d.id
-			ORDER BY d.date DESC, d.id DESC 
+			ORDER BY d.date DESC, d.id DESC, a.key
 			LIMIT $1 OFFSET $2`
 
 	rows, err := db.pool.Query(ctx, query, limit+1, offset)
