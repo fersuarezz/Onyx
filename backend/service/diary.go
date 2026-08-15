@@ -18,6 +18,11 @@ const imgFull = "full.jpg"
 const imgThumb = "thumbnail.jpg"
 const tempDir = ".temp"
 
+const (
+	sizeFull  = "full"
+	sizeThumb = "thumb"
+)
+
 type DiaryService struct {
 	diary     db.DiaryDataBase
 	mediaRoot string
@@ -249,4 +254,33 @@ func (d *DiaryService) AllAttachments(ctx context.Context, limit int, offset int
 	}
 
 	return keys, hasMore, nil
+}
+
+func (d *DiaryService) GetAttachmentPath(key string, size string) (string, error) {
+	k, err := uuid.Parse(key)
+	if err != nil {
+		return "", fmt.Errorf("%w: key inválida", ErrInvalidInput)
+	}
+
+	var file string
+	switch size {
+	case sizeFull:
+		file = imgFull
+	case sizeThumb:
+		file = imgThumb
+	default:
+		return "", fmt.Errorf("%w: size inválido", ErrInvalidInput)
+	}
+
+	path := filepath.Join(d.mediaRoot, k.String(), file)
+
+	_, err = os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("%w: el archivo no existe", ErrNotFound)
+		}
+		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+	}
+
+	return path, nil
 }

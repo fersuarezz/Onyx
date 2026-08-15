@@ -47,3 +47,8 @@ type AllAttachmentsResponse struct {
 	Keys    []string `json:"keys"`
 	HasMore bool     `json:"has_more"`
 }
+
+type GetAttachmentRequest struct {
+	Key  string `params:"key"`
+	Size string `params:"size"`
+}

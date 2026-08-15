@@ -179,6 +179,23 @@ func (h *Handler) AllAttachments(c *fiber.Ctx) error {
 	})
 }
 
+func (h *Handler) GetAttachment(c *fiber.Ctx) error {
+	var req GetAttachmentRequest
+
+	err := c.ParamsParser(&req)
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: params inválidos", service.ErrInvalidInput))
+	}
+
+	path, err := h.service.GetAttachmentPath(req.Key, req.Size)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	c.Set(fiber.HeaderCacheControl, "public, max-age=31536000, immutable")
+	return c.SendFile(path)
+}
+
 func HandleError(err error) error {
 	switch {
 	case errors.Is(err, service.ErrInvalidInput):
