@@ -191,7 +191,7 @@ func (d *DiaryService) Delete(ctx context.Context, id int) error {
 	keys, err := d.diary.Delete(ctx, id)
 	if err != nil {
 		if errors.Is(err, db.ErrNotFound) {
-			return err
+			return ErrNotFound
 		}
 
 		return fmt.Errorf("%w: %w", ErrDatabase, err)
@@ -224,7 +224,7 @@ func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text st
 		d.deleteAttachmentFolders(keys)
 
 		if errors.Is(err, db.ErrNotFound) {
-			return err
+			return ErrNotFound
 		}
 
 		return fmt.Errorf("%w: %w", ErrDatabase, err)

@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"mime/multipart"
-	"onyx/core/db"
 	"onyx/service"
 	"time"
 
@@ -193,8 +192,8 @@ func HandleError(err error) error {
 	case errors.Is(err, service.ErrFileSystem):
 		slog.Error("error de file system", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
-	case errors.Is(err, db.ErrNotFound):
-		slog.Error("DB 404", "err", err)
+	case errors.Is(err, service.ErrNotFound):
+		slog.Error("Not found", "err", err)
 		return fiber.NewError(fiber.StatusNotFound, "Archivo no encontrado")
 	default:
 		slog.Error("error no controlado", "err", err)
