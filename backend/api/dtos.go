@@ -5,8 +5,8 @@ import (
 )
 
 type InsertRequest struct {
-	Date core.Date `form:"date" json:"date"`
-	Text string    `form:"text" json:"text"`
+	Date core.Date `form:"date"`
+	Text string    `form:"text"`
 }
 
 type InsertResponse struct {
@@ -33,12 +33,12 @@ type SearchResponse struct {
 	HasMore bool              `json:"has_more"`
 }
 
-type DeleteRequest struct {
-	Id int `query:"id" json:"id"`
+type EditRequest struct {
+	Date core.Date `form:"date"`
+	Text string    `form:"text"`
 }
 
-type EditRequest struct {
-	Id   int       `form:"id" json:"id"`
-	Date core.Date `form:"date" json:"date"`
-	Text string    `form:"text" json:"text"`
+type AllAttachmentsRequest struct {
+	Limit  int `query:"limit"`
+	Offset int `query:"offset"`
 }

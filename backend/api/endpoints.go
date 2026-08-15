@@ -40,7 +40,9 @@ func (h *Handler) Insert(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
 	defer cancel()
 
-	srcs, err := multipartsToReaders(files)
+	srcs, closers, err := multipartsToReaders(files)
+	defer closeAll(closers)
+
 	if err != nil {
 		return HandleError(err)
 	}
@@ -103,17 +105,15 @@ func (h *Handler) Search(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Delete(c *fiber.Ctx) error {
-	var req DeleteRequest
-
-	err := c.BodyParser(&req)
+	id, err := c.ParamsInt("id")
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: parámetros inválidos", service.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: id inválido", service.ErrInvalidInput))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
 	defer cancel()
 
-	err = h.service.Delete(ctx, req.Id)
+	err = h.service.Delete(ctx, id)
 	if err != nil {
 		return HandleError(err)
 	}
@@ -122,9 +122,14 @@ func (h *Handler) Delete(c *fiber.Ctx) error {
 }
 
 func (h *Handler) Edit(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: id inválido", service.ErrInvalidInput))
+	}
+
 	var req EditRequest
 
-	err := c.BodyParser(&req)
+	err = c.BodyParser(&req)
 	if err != nil {
 		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
 	}
@@ -135,15 +140,17 @@ func (h *Handler) Edit(c *fiber.Ctx) error {
 	}
 
 	files := form.File["files"]
-	srcs, err := multipartsToReaders(files)
+	srcs, closers, err := multipartsToReaders(files)
+	defer closeAll(closers)
+
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", service.ErrFileSystem))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
 	defer cancel()
 
-	err = h.service.Edit(ctx, req.Id, req.Date, req.Text, srcs)
+	err = h.service.Edit(ctx, id, req.Date, req.Text, srcs)
 	if err != nil {
 		return HandleError(err)
 	}
@@ -173,17 +180,27 @@ func HandleError(err error) error {
 	}
 }
 
-func multipartsToReaders(multiparts []*multipart.FileHeader) ([]io.ReadSeeker, error) {
+func multipartsToReaders(multiparts []*multipart.FileHeader) ([]io.ReadSeeker, []io.Closer, error) {
 	var seekers []io.ReadSeeker
+	var closers []io.Closer
 
 	for _, m := range multiparts {
 		src, err := m.Open()
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", service.ErrFileSystem, err)
+			return nil, closers, fmt.Errorf("%w: %w", service.ErrFileSystem, err)
 		}
-		defer src.Close()
+		closers = append(closers, src)
 		seekers = append(seekers, src)
 	}
 
-	return seekers, nil
+	return seekers, closers, nil
+}
+
+func closeAll(closers []io.Closer) {
+	for _, c := range closers {
+		err := c.Close()
+		if err != nil {
+			slog.Error("no se pudo cerrar el archivo", "err", err)
+		}
+	}
 }
