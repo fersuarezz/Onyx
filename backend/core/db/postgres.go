@@ -10,9 +10,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+func NewPostgressDiary(pool *pgxpool.Pool) *PostgresDiary {
+	return &PostgresDiary{pool: pool}
+}
+
 type PostgresDiary struct {
 	pool *pgxpool.Pool
 }
+
+var _ DiaryDataBase = (*PostgresDiary)(nil)
 
 func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int, error) {
 	tx, err := db.pool.Begin(ctx)

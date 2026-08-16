@@ -16,6 +16,8 @@ type FileSystemStorage struct {
 	mediaRoot string
 }
 
+var _ Storage = (*FileSystemStorage)(nil)
+
 func NewFileSystemStorage(mediaRoot string) *FileSystemStorage {
 	return &FileSystemStorage{mediaRoot: mediaRoot}
 }
