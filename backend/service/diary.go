@@ -139,7 +139,7 @@ func (d *DiaryService) saveAttachment(src io.ReadSeeker) (string, error) {
 
 func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, srcs []io.ReadSeeker) (int, error) {
 	if date.IsZero() || (text == "" && len(srcs) == 0) {
-		return -1, fmt.Errorf("%w: entry inválido", ErrInvalidInput)
+		return -1, fmt.Errorf("%w: entry inválido", core.ErrInvalidInput)
 	}
 
 	keys, err := d.saveAttachments(srcs)
@@ -155,8 +155,8 @@ func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, 
 
 	id, err := d.diary.Insert(ctx, entry)
 	if err != nil {
-		d.deleteAttachmentFolders(keys)
-		return -1, fmt.Errorf("%w: %w", ErrDatabase, err)
+		d.storage.DeleteAttachmentFolders(keys)
+		return -1, fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
 
 	return id, nil
@@ -164,13 +164,13 @@ func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, 
 
 func (d *DiaryService) GetByDate(ctx context.Context, date core.Date, ignoreYear bool) ([]core.DiaryEntry, error) {
 	if date.IsZero() {
-		return nil, fmt.Errorf("%w: fecha inválida", ErrInvalidInput)
+		return nil, fmt.Errorf("%w: fecha inválida", core.ErrInvalidInput)
 	}
 
-	entries, err := d.diary.GetByDate(ctx, date, ignoreYear)
+	entries, err := d.db.GetByDate(ctx, date, ignoreYear)
 
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrDatabase, err)
+		return nil, fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
 
 	return entries, nil
@@ -178,15 +178,15 @@ func (d *DiaryService) GetByDate(ctx context.Context, date core.Date, ignoreYear
 
 func (d *DiaryService) Search(ctx context.Context, text string, limit int, offset int) ([]core.DiaryEntry, bool, error) {
 	if limit < 1 || limit > 100 {
-		return nil, false, fmt.Errorf("%w: limit debe estar entre 1 y 100", ErrInvalidInput)
+		return nil, false, fmt.Errorf("%w: limit debe estar entre 1 y 100", core.ErrInvalidInput)
 	}
 	if offset < 0 {
-		return nil, false, fmt.Errorf("%w: offset debe ser positivo", ErrInvalidInput)
+		return nil, false, fmt.Errorf("%w: offset debe ser positivo", core.ErrInvalidInput)
 	}
 
 	entries, hasMore, err := d.diary.Search(ctx, text, limit, offset)
 	if err != nil {
-		return nil, false, fmt.Errorf("%w: %w", ErrDatabase, err)
+		return nil, false, fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
 
 	return entries, hasMore, nil
@@ -195,11 +195,11 @@ func (d *DiaryService) Search(ctx context.Context, text string, limit int, offse
 func (d *DiaryService) Delete(ctx context.Context, id int) error {
 	keys, err := d.diary.Delete(ctx, id)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
-			return ErrNotFound
+		if errors.Is(err, core.ErrNotFound) {
+			return core.ErrNotFound
 		}
 
-		return fmt.Errorf("%w: %w", ErrDatabase, err)
+		return fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
 
 	d.deleteAttachmentFolders(keys)
@@ -209,7 +209,7 @@ func (d *DiaryService) Delete(ctx context.Context, id int) error {
 
 func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text string, srcs []io.ReadSeeker) error {
 	if date.IsZero() || (text == "" && len(srcs) == 0) {
-		return fmt.Errorf("%w: entry inválido", ErrInvalidInput)
+		return fmt.Errorf("%w: entry inválido", core.ErrInvalidInput)
 	}
 
 	keys, err := d.saveAttachments(srcs)
@@ -228,11 +228,11 @@ func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text st
 	if err != nil {
 		d.deleteAttachmentFolders(keys)
 
-		if errors.Is(err, db.ErrNotFound) {
-			return ErrNotFound
+		if errors.Is(err, core.ErrNotFound) {
+			return core.ErrNotFound
 		}
 
-		return fmt.Errorf("%w: %w", ErrDatabase, err)
+		return fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
 
 	d.deleteAttachmentFolders(orphaned)
@@ -250,7 +250,7 @@ func (d *DiaryService) AllAttachments(ctx context.Context, limit int, offset int
 
 	keys, hasMore, err := d.diary.AllAttachments(ctx, limit, offset)
 	if err != nil {
-		return nil, false, fmt.Errorf("%w: %w", ErrDatabase, err)
+		return nil, false, fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
 
 	return keys, hasMore, nil
@@ -259,7 +259,7 @@ func (d *DiaryService) AllAttachments(ctx context.Context, limit int, offset int
 func (d *DiaryService) GetAttachmentPath(key string, size string) (string, error) {
 	k, err := uuid.Parse(key)
 	if err != nil {
-		return "", fmt.Errorf("%w: key inválida", ErrInvalidInput)
+		return "", fmt.Errorf("%w: key inválida", core.ErrInvalidInput)
 	}
 
 	var file string

@@ -137,7 +137,7 @@ func (db *PostgresDiary) Delete(ctx context.Context, id int) ([]string, error) {
 	}
 
 	if tag.RowsAffected() == 0 {
-		return nil, ErrNotFound
+		return nil, core.ErrNotFound
 	}
 
 	err = tx.Commit(ctx)
@@ -167,7 +167,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) ([]str
 	}
 
 	if tag.RowsAffected() == 0 {
-		return nil, ErrNotFound
+		return nil, core.ErrNotFound
 	}
 
 	// Update attachments
