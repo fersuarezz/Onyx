@@ -1,4 +1,4 @@
-package service
+package storage
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
+	"onyx/core"
 
 	_ "image/gif"
 	_ "image/png"
@@ -24,20 +25,20 @@ const (
 func Thumbnail(src io.ReadSeeker) (io.Reader, error) {
 	cfg, _, err := image.DecodeConfig(src)
 	if err != nil {
-		return nil, fmt.Errorf("%w: no es una imagen válida", ErrInvalidInput)
+		return nil, fmt.Errorf("%w: no es una imagen válida", core.ErrInvalidInput)
 	}
 
 	if cfg.Width*cfg.Height > thumbMaxPixels {
-		return nil, fmt.Errorf("%w: imagen demasiado grande (%dx%d)", ErrInvalidInput, cfg.Width, cfg.Height)
+		return nil, fmt.Errorf("%w: imagen demasiado grande (%dx%d)", core.ErrInvalidInput, cfg.Width, cfg.Height)
 	}
 
 	if _, err := src.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("%w: rebobinar origen: %w", ErrFileSystem, err)
+		return nil, fmt.Errorf("%w: rebobinar origen: %w", core.ErrFileSystem, err)
 	}
 
 	img, _, err := image.Decode(src)
 	if err != nil {
-		return nil, fmt.Errorf("%w: no se pudo decodificar la imagen", ErrInvalidInput)
+		return nil, fmt.Errorf("%w: no se pudo decodificar la imagen", core.ErrInvalidInput)
 	}
 
 	bounds := img.Bounds()
@@ -48,7 +49,7 @@ func Thumbnail(src io.ReadSeeker) (io.Reader, error) {
 
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: thumbQuality}); err != nil {
-		return nil, fmt.Errorf("%w: codificar thumbnail: %w", ErrFileSystem, err)
+		return nil, fmt.Errorf("%w: codificar thumbnail: %w", core.ErrFileSystem, err)
 	}
 
 	return &buf, nil

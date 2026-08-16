@@ -5,136 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"onyx/core"
 	"onyx/core/db"
-	"os"
-	"path/filepath"
+	"onyx/core/storage"
 
 	"github.com/google/uuid"
 )
 
-const imgFull = "full.jpg"
-const imgThumb = "thumbnail.jpg"
-const tempDir = ".temp"
-
-const (
-	sizeFull  = "full"
-	sizeThumb = "thumb"
-)
-
 type DiaryService struct {
-	diary     db.DiaryDataBase
-	mediaRoot string
+	db      db.DiaryDataBase
+	storage storage.Storage
 }
 
-func (d *DiaryService) saveAttachments(srcs []io.ReadSeeker) ([]string, error) {
-	var keys []string
-
-	for _, src := range srcs {
-		key, err := d.saveAttachment(src)
-		if err != nil {
-			d.deleteAttachmentFolders(keys)
-
-			return nil, err
-		}
-
-		keys = append(keys, key)
-	}
-
-	return keys, nil
-}
-
-func (d *DiaryService) deleteAttachmentFolder(key string) error {
-	folder := filepath.Join(d.mediaRoot, key)
-
-	err := os.RemoveAll(folder)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-	return nil
-}
-
-func (d *DiaryService) deleteAttachmentFolders(keys []string) {
-	for _, v := range keys {
-		err := d.deleteAttachmentFolder(v)
-		if err != nil {
-			slog.Error("no se pudo borrar el adjunto", "key", v, "err", err)
-		}
-	}
-}
-
-func (d *DiaryService) saveAttachment(src io.ReadSeeker) (string, error) {
-	key, err := uuid.NewV7()
-	if err != nil {
-		return "", fmt.Errorf("generando uui7: %w", err)
-	}
-
-	tempFolder := filepath.Join(d.mediaRoot, tempDir, key.String())
-	full := filepath.Join(tempFolder, imgFull)
-	thumbnail := filepath.Join(tempFolder, imgThumb)
-
-	err = os.MkdirAll(tempFolder, 0o755)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-
-	defer os.RemoveAll(tempFolder) // Rollback
-
-	// Guardar imagen full
-	dst, err := os.Create(full)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-
-	defer dst.Close()
-
-	_, err = io.Copy(dst, src)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-
-	// Guardar thummbnail
-	dst2, err := os.Create(thumbnail)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-
-	_, err = src.Seek(0, io.SeekStart)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-	th, err := Thumbnail(src)
-	if err != nil {
-		return "", err
-	}
-
-	defer dst2.Close()
-
-	_, err = io.Copy(dst2, th)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-
-	// Rename folder
-	err = dst.Close()
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-
-	err = dst2.Close()
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-
-	finalFolder := filepath.Join(d.mediaRoot, key.String())
-
-	err = os.Rename(tempFolder, finalFolder)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
-	}
-
-	return key.String(), nil
+func NewDiaryService(db db.DiaryDataBase, storage storage.Storage) *DiaryService {
+	return &DiaryService{db: db, storage: storage}
 }
 
 func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, srcs []io.ReadSeeker) (int, error) {
@@ -142,7 +26,7 @@ func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, 
 		return -1, fmt.Errorf("%w: entry inválido", core.ErrInvalidInput)
 	}
 
-	keys, err := d.saveAttachments(srcs)
+	keys, err := d.storage.SaveAttachments(srcs)
 	if err != nil {
 		return -1, err
 	}
@@ -153,7 +37,7 @@ func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, 
 		Keys: keys,
 	}
 
-	id, err := d.diary.Insert(ctx, entry)
+	id, err := d.db.Insert(ctx, entry)
 	if err != nil {
 		d.storage.DeleteAttachmentFolders(keys)
 		return -1, fmt.Errorf("%w: %w", core.ErrDatabase, err)
@@ -184,7 +68,7 @@ func (d *DiaryService) Search(ctx context.Context, text string, limit int, offse
 		return nil, false, fmt.Errorf("%w: offset debe ser positivo", core.ErrInvalidInput)
 	}
 
-	entries, hasMore, err := d.diary.Search(ctx, text, limit, offset)
+	entries, hasMore, err := d.db.Search(ctx, text, limit, offset)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
@@ -193,7 +77,7 @@ func (d *DiaryService) Search(ctx context.Context, text string, limit int, offse
 }
 
 func (d *DiaryService) Delete(ctx context.Context, id int) error {
-	keys, err := d.diary.Delete(ctx, id)
+	keys, err := d.db.Delete(ctx, id)
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
 			return core.ErrNotFound
@@ -202,7 +86,7 @@ func (d *DiaryService) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
 
-	d.deleteAttachmentFolders(keys)
+	d.storage.DeleteAttachmentFolders(keys)
 
 	return nil
 }
@@ -212,7 +96,7 @@ func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text st
 		return fmt.Errorf("%w: entry inválido", core.ErrInvalidInput)
 	}
 
-	keys, err := d.saveAttachments(srcs)
+	keys, err := d.storage.SaveAttachments(srcs)
 	if err != nil {
 		return err
 	}
@@ -224,9 +108,9 @@ func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text st
 		Keys: keys,
 	}
 
-	orphaned, err := d.diary.Edit(ctx, entry)
+	orphaned, err := d.db.Edit(ctx, entry)
 	if err != nil {
-		d.deleteAttachmentFolders(keys)
+		d.storage.DeleteAttachmentFolders(keys)
 
 		if errors.Is(err, core.ErrNotFound) {
 			return core.ErrNotFound
@@ -235,20 +119,20 @@ func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text st
 		return fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
 
-	d.deleteAttachmentFolders(orphaned)
+	d.storage.DeleteAttachmentFolders(orphaned)
 
 	return nil
 }
 
 func (d *DiaryService) AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error) {
 	if limit < 1 || limit > 100 {
-		return nil, false, fmt.Errorf("%w: limit debe estar entre 1 y 100", ErrInvalidInput)
+		return nil, false, fmt.Errorf("%w: limit debe estar entre 1 y 100", core.ErrInvalidInput)
 	}
 	if offset < 0 {
-		return nil, false, fmt.Errorf("%w: offset debe ser positivo", ErrInvalidInput)
+		return nil, false, fmt.Errorf("%w: offset debe ser positivo", core.ErrInvalidInput)
 	}
 
-	keys, hasMore, err := d.diary.AllAttachments(ctx, limit, offset)
+	keys, hasMore, err := d.db.AllAttachments(ctx, limit, offset)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w: %w", core.ErrDatabase, err)
 	}
@@ -262,24 +146,9 @@ func (d *DiaryService) GetAttachmentPath(key string, size string) (string, error
 		return "", fmt.Errorf("%w: key inválida", core.ErrInvalidInput)
 	}
 
-	var file string
-	switch size {
-	case sizeFull:
-		file = imgFull
-	case sizeThumb:
-		file = imgThumb
-	default:
-		return "", fmt.Errorf("%w: size inválido", ErrInvalidInput)
-	}
-
-	path := filepath.Join(d.mediaRoot, k.String(), file)
-
-	_, err = os.Stat(path)
+	path, err := d.storage.GetFilePath(k.String(), size)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("%w: el archivo no existe", ErrNotFound)
-		}
-		return "", fmt.Errorf("%w: %w", ErrFileSystem, err)
+		return "", err
 	}
 
 	return path, nil
