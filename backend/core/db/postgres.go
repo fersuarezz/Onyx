@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewPostgressDiary(pool *pgxpool.Pool) *PostgresDiary {
+func NewPostgresDiary(pool *pgxpool.Pool) *PostgresDiary {
 	return &PostgresDiary{pool: pool}
 }
 
