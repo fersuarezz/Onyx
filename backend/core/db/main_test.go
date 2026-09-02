@@ -7,9 +7,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
+
+var testPool *pgxpool.Pool
 
 func TestMain(m *testing.M) {
 	os.Exit(Run(m))
@@ -53,6 +56,17 @@ func Run(m *testing.M) int {
 		fmt.Fprintf(os.Stderr, "aplicando migraciones: %v\n", err)
 		return 1
 	}
+
+	// Create pool
+	pool, err := pgxpool.New(ctx, connStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "creando el pool: %v\n", err)
+		return 1
+	}
+
+	defer pool.Close()
+
+	testPool = pool
 
 	// Exec tests
 	return m.Run()
