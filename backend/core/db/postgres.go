@@ -15,7 +15,7 @@ func NewPostgresDiary(pool *pgxpool.Pool) *PostgresDiary {
 }
 
 type PostgresDiary struct {
-	pool *pgxpool.Pool
+	pool core.Querier
 }
 
 var _ DiaryDataBase = (*PostgresDiary)(nil)
