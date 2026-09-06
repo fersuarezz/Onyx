@@ -8,21 +8,23 @@ import (
 	"log/slog"
 	"mime/multipart"
 	"onyx/core"
+	"onyx/core/db"
+	"onyx/core/storage"
 	"onyx/service"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-type Handler struct {
+type DiaryHandler struct {
 	service *service.DiaryService
 }
 
-func NewHandler(s *service.DiaryService) *Handler {
-	return &Handler{service: s}
+func NewDiaryHandler(db db.DiaryDataBase, storage storage.Storage) *DiaryHandler {
+	return &DiaryHandler{service: service.NewDiaryService(db, storage)}
 }
 
-func (h *Handler) Insert(c *fiber.Ctx) error {
+func (h *DiaryHandler) Insert(c *fiber.Ctx) error {
 	var req InsertRequest
 
 	err := c.BodyParser(&req)
@@ -58,7 +60,7 @@ func (h *Handler) Insert(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) GetByDate(c *fiber.Ctx) error {
+func (h *DiaryHandler) GetByDate(c *fiber.Ctx) error {
 	var req GetByDateRequest
 
 	err := c.QueryParser(&req)
@@ -81,7 +83,7 @@ func (h *Handler) GetByDate(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) Search(c *fiber.Ctx) error {
+func (h *DiaryHandler) Search(c *fiber.Ctx) error {
 	var req SearchRequest
 
 	err := c.QueryParser(&req)
@@ -104,7 +106,7 @@ func (h *Handler) Search(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) Delete(c *fiber.Ctx) error {
+func (h *DiaryHandler) Delete(c *fiber.Ctx) error {
 	id, err := c.ParamsInt("id")
 	if err != nil {
 		return HandleError(fmt.Errorf("%w: id inválido", core.ErrInvalidInput))
@@ -121,7 +123,7 @@ func (h *Handler) Delete(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *Handler) Edit(c *fiber.Ctx) error {
+func (h *DiaryHandler) Edit(c *fiber.Ctx) error {
 	id, err := c.ParamsInt("id")
 	if err != nil {
 		return HandleError(fmt.Errorf("%w: id inválido", core.ErrInvalidInput))
@@ -158,7 +160,7 @@ func (h *Handler) Edit(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
-func (h *Handler) AllAttachments(c *fiber.Ctx) error {
+func (h *DiaryHandler) AllAttachments(c *fiber.Ctx) error {
 	var req AllAttachmentsRequest
 
 	err := c.QueryParser(&req)
@@ -180,7 +182,7 @@ func (h *Handler) AllAttachments(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) GetAttachment(c *fiber.Ctx) error {
+func (h *DiaryHandler) GetAttachment(c *fiber.Ctx) error {
 	var req GetAttachmentRequest
 
 	err := c.ParamsParser(&req)
