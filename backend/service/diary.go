@@ -22,8 +22,13 @@ func NewDiaryService(db db.DiaryDataBase, storage storage.Storage) *DiaryService
 }
 
 func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, srcs []io.ReadSeeker) (int, error) {
-	if date.IsZero() || (text == "" && len(srcs) == 0) {
+	if text == "" && len(srcs) == 0 {
 		return -1, fmt.Errorf("%w: entry inválido", core.ErrInvalidInput)
+	}
+
+	datePointer := &date
+	if date.IsZero() {
+		datePointer = nil
 	}
 
 	keys, err := d.storage.SaveAttachments(srcs)
@@ -32,7 +37,7 @@ func (d *DiaryService) Insert(ctx context.Context, date core.Date, text string, 
 	}
 
 	entry := core.DiaryEntry{
-		Date: date,
+		Date: datePointer,
 		Text: text,
 		Keys: keys,
 	}
@@ -92,8 +97,13 @@ func (d *DiaryService) Delete(ctx context.Context, id int) error {
 }
 
 func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text string, srcs []io.ReadSeeker) error {
-	if date.IsZero() || (text == "" && len(srcs) == 0) {
+	if text == "" && len(srcs) == 0 {
 		return fmt.Errorf("%w: entry inválido", core.ErrInvalidInput)
+	}
+
+	datePointer := &date
+	if date.IsZero() {
+		datePointer = nil
 	}
 
 	keys, err := d.storage.SaveAttachments(srcs)
@@ -104,7 +114,7 @@ func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text st
 	entry := core.DiaryEntry{
 		ID:   id,
 		Text: text,
-		Date: date,
+		Date: datePointer,
 		Keys: keys,
 	}
 
@@ -138,6 +148,22 @@ func (d *DiaryService) AllAttachments(ctx context.Context, limit int, offset int
 	}
 
 	return keys, hasMore, nil
+}
+
+func (d *DiaryService) GetAtemporal(ctx context.Context, limit int, offset int) ([]core.DiaryEntry, bool, error) {
+	if limit < 1 || limit > 100 {
+		return nil, false, fmt.Errorf("%w: limit debe estar entre 1 y 100", core.ErrInvalidInput)
+	}
+	if offset < 0 {
+		return nil, false, fmt.Errorf("%w: offset debe ser positivo", core.ErrInvalidInput)
+	}
+
+	entries, hasMore, err := d.db.GetAtemporal(ctx, limit, offset)
+	if err != nil {
+		return nil, false, fmt.Errorf("%w: %w", core.ErrDatabase, err)
+	}
+
+	return entries, hasMore, nil
 }
 
 func (d *DiaryService) GetAttachmentPath(key string, size string) (string, error) {

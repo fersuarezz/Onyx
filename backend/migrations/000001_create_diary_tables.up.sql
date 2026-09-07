@@ -1,7 +1,7 @@
 CREATE TABLE diary_entries (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     text TEXT NOT NULL DEFAULT '',
-    date DATE NOT NULL
+    date DATE
 );
 
 CREATE TABLE attachments (

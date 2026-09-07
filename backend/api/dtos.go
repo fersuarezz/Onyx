@@ -52,3 +52,13 @@ type GetAttachmentRequest struct {
 	Key  string `params:"key"`
 	Size string `params:"size"`
 }
+
+type GetAtemporalEntriesRequest struct {
+	Limit  int `query:"limit"`
+	Offset int `query:"offset"`
+}
+
+type GetAtemporalEntriesResponse struct {
+	Entries []core.DiaryEntry `json:"entries"`
+	HasMore bool              `json:"has_more"`
+}

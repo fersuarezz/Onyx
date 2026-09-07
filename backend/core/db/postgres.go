@@ -222,6 +222,33 @@ func (db *PostgresDiary) AllAttachments(ctx context.Context, limit int, offset i
 	return atts, hasMore, nil
 }
 
+func (db *PostgresDiary) GetAtemporal(ctx context.Context, limit int, offset int) ([]core.DiaryEntry, bool, error) {
+	query := `	SELECT d.id, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
+				FROM diary_entries AS d 
+				LEFT JOIN attachments AS a ON d.id = a.entry_id 
+				WHERE d.date IS NULL
+				GROUP BY d.id, d.date, d.text
+				ORDER BY d.id DESC
+				LIMIT $1 OFFSET $2`
+
+	rows, err := db.pool.Query(ctx, query, limit+1, offset)
+	if err != nil {
+		return nil, false, fmt.Errorf("querying diary entries: %w", err)
+	}
+
+	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[core.DiaryEntry])
+	if err != nil {
+		return nil, false, fmt.Errorf("parsing rows to struct: %w", err)
+	}
+
+	hasMore := len(entries) > limit
+	if hasMore {
+		entries = entries[:limit]
+	}
+
+	return entries, hasMore, nil
+}
+
 func insertAttachments(ctx context.Context, tx pgx.Tx, id int, attachments []string) error {
 	query := `INSERT INTO attachments (entry_id, key) values ($1, $2)`
 	for _, att := range attachments {

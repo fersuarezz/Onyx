@@ -12,4 +12,5 @@ type DiaryDataBase interface {
 	Delete(ctx context.Context, id int) ([]string, error)
 	Edit(ctx context.Context, entry core.DiaryEntry) ([]string, error)
 	AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error)
+	GetAtemporal(ctx context.Context, limit int, offset int) ([]core.DiaryEntry, bool, error)
 }

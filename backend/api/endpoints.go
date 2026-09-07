@@ -64,7 +64,6 @@ func (h *DiaryHandler) GetByDate(c *fiber.Ctx) error {
 	var req GetByDateRequest
 
 	err := c.QueryParser(&req)
-
 	if err != nil {
 		return HandleError(fmt.Errorf("%w: parámetros inválidos", core.ErrInvalidInput))
 	}
@@ -199,6 +198,28 @@ func (h *DiaryHandler) GetAttachment(c *fiber.Ctx) error {
 	return c.SendFile(path)
 }
 
+func (h *DiaryHandler) GetAtemporal(c *fiber.Ctx) error {
+	var req GetAtemporalEntriesRequest
+
+	err := c.QueryParser(&req)
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", core.ErrInvalidInput))
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
+	defer cancel()
+
+	entries, hasMore, err := h.service.GetAtemporal(ctx, req.Limit, req.Offset)
+	if err != nil {
+		return HandleError(err)
+	}
+
+	return c.Status(fiber.StatusOK).JSON(GetAtemporalEntriesResponse{
+		Entries: entries,
+		HasMore: hasMore,
+	})
+}
+
 func HandleError(err error) error {
 	switch {
 	case errors.Is(err, core.ErrInvalidInput):
@@ -255,4 +276,5 @@ func (h *DiaryHandler) RegisterRoutes(r fiber.Router) {
 	g.Get("/search", h.Search)
 	g.Get("/attachments", h.AllAttachments)
 	g.Get("/attachments/:key/:size", h.GetAttachment)
+	g.Get("/atemporal", h.GetAtemporal)
 }

@@ -23,7 +23,7 @@ func main() {
 
 	err := run(ctx)
 	if err != nil {
-		slog.Error("Error en el main", "err", err)
+		slog.Error("in main function: ", "err", err)
 		os.Exit(1)
 	}
 }
