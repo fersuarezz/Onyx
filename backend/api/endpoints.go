@@ -245,3 +245,14 @@ func closeAll(closers []io.Closer) {
 		}
 	}
 }
+
+func (h *DiaryHandler) RegisterRoutes(r fiber.Router) {
+	g := r.Group("/diary")
+	g.Post("/", h.Insert)
+	g.Get("/", h.GetByDate)
+	g.Delete("/:id", h.Delete)
+	g.Put("/:id", h.Edit)
+	g.Get("/search", h.Search)
+	g.Get("/attachments", h.AllAttachments)
+	g.Get("/attachments/:key/:size", h.GetAttachment)
+}
