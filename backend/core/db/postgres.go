@@ -153,29 +153,29 @@ func (db *PostgresDiary) Delete(ctx context.Context, id int) ([]string, error) {
 	return keys, nil
 }
 
-func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) ([]string, error) {
+func (db *PostgresDiary) Edit(ctx context.Context, id int, date *core.Date, text *string, keys []string) ([]string, error) {
 	tx, err := db.pool.Begin(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("pool.Begin: %w", err)
 	}
-
-	id := entry.ID
-
 	defer tx.Rollback(ctx)
 
-	query := `UPDATE diary_entries SET date = $1, text = $2 WHERE id = $3`
+	// Update date and text
+	query := `UPDATE diary_entries SET date = COALESCE($1, date), text = COALESCE($2, text) WHERE id = $3`
 
-	tag, err := tx.Exec(ctx, query, entry.Date, entry.Text, id)
+	tag, err := tx.Exec(ctx, query, date, text, id)
 	if err != nil {
 		return nil, fmt.Errorf("update diary entry: %w", err)
 	}
-
 	if tag.RowsAffected() == 0 {
 		return nil, core.ErrNotFound
 	}
 
 	// Update attachments
+	if keys == nil {
+		return nil, tx.Commit(ctx)
+	}
+
 	query = `DELETE FROM attachments WHERE entry_id = $1 RETURNING key`
 
 	rows, err := tx.Query(ctx, query, id)
@@ -188,7 +188,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) ([]str
 		return nil, fmt.Errorf("parsing orphans: %w", err)
 	}
 
-	err = insertAttachments(ctx, tx, id, entry.Keys)
+	err = insertAttachments(ctx, tx, id, keys)
 	if err != nil {
 		return nil, err
 	}

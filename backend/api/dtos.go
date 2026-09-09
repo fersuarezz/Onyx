@@ -34,8 +34,8 @@ type SearchResponse struct {
 }
 
 type EditRequest struct {
-	Date core.Date `form:"date"`
-	Text string    `form:"text"`
+	Date *core.Date `form:"date"`
+	Text *string    `form:"text"`
 }
 
 type AllAttachmentsRequest struct {

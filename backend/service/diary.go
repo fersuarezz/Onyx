@@ -96,29 +96,21 @@ func (d *DiaryService) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-func (d *DiaryService) Edit(ctx context.Context, id int, date core.Date, text string, srcs []io.ReadSeeker) error {
-	if text == "" && len(srcs) == 0 {
-		return fmt.Errorf("%w: entry inválido", core.ErrInvalidInput)
+func (d *DiaryService) Edit(ctx context.Context, id int, date *core.Date, text *string, srcs []io.ReadSeeker) error {
+	if text == nil && len(srcs) == 0 && date == nil {
+		return fmt.Errorf("%w: entry inválido, nada que editar", core.ErrInvalidInput)
 	}
 
-	datePointer := &date
-	if date.IsZero() {
-		datePointer = nil
+	var keys []string
+	var err error
+	if len(srcs) != 0 {
+		keys, err = d.storage.SaveAttachments(srcs)
+		if err != nil {
+			return err
+		}
 	}
 
-	keys, err := d.storage.SaveAttachments(srcs)
-	if err != nil {
-		return err
-	}
-
-	entry := core.DiaryEntry{
-		ID:   id,
-		Text: text,
-		Date: datePointer,
-		Keys: keys,
-	}
-
-	orphaned, err := d.db.Edit(ctx, entry)
+	orphaned, err := d.db.Edit(ctx, id, date, text, keys)
 	if err != nil {
 		d.storage.DeleteAttachmentFolders(keys)
 
