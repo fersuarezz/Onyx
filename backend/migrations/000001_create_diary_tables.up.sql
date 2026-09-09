@@ -1,5 +1,6 @@
 CREATE TABLE diary_entries (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     text TEXT NOT NULL DEFAULT '',
     date DATE
 );

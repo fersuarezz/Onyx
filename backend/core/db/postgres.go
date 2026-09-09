@@ -90,7 +90,7 @@ func (db *PostgresDiary) Search(ctx context.Context, text string, limit int, off
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.text ILIKE $1
 				GROUP BY d.id, d.date, d.text
-				ORDER BY d.date DESC, d.id DESC
+				ORDER BY COALESCE(d.date, d.created_at::date) DESC, d.id DESC
 				LIMIT $2 OFFSET $3
 			`
 
@@ -199,7 +199,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, entry core.DiaryEntry) ([]str
 func (db *PostgresDiary) AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error) {
 	query := `SELECT a.key FROM attachments AS a
 			JOIN diary_entries AS d ON a.entry_id = d.id
-			ORDER BY d.date DESC, d.id DESC, a.key
+			ORDER BY COALESCE(d.date, d.created_at::date) DESC, d.id DESC, a.key
 			LIMIT $1 OFFSET $2`
 
 	rows, err := db.pool.Query(ctx, query, limit+1, offset)
@@ -228,7 +228,7 @@ func (db *PostgresDiary) GetAtemporal(ctx context.Context, limit int, offset int
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.date IS NULL
 				GROUP BY d.id, d.date, d.text
-				ORDER BY d.id DESC
+				ORDER BY d.created_at DESC, d.id DESC
 				LIMIT $1 OFFSET $2`
 
 	rows, err := db.pool.Query(ctx, query, limit+1, offset)
