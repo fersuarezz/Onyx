@@ -62,3 +62,7 @@ type GetAtemporalEntriesResponse struct {
 	Entries []core.DiaryEntry `json:"entries"`
 	HasMore bool              `json:"has_more"`
 }
+
+type GetByIdResponse struct {
+	Entry core.DiaryEntry `json:"entry"`
+}

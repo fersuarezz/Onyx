@@ -220,6 +220,25 @@ func (h *DiaryHandler) GetAtemporal(c *fiber.Ctx) error {
 	})
 }
 
+func (h *DiaryHandler) GetById(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", core.ErrInvalidInput))
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
+	defer cancel()
+
+	entry, err := h.service.GetById(ctx, id)
+
+	if err != nil {
+		return HandleError(err)
+	}
+	return c.Status(fiber.StatusOK).JSON(GetByIdResponse{
+		Entry: entry,
+	})
+}
+
 func HandleError(err error) error {
 	switch {
 	case errors.Is(err, core.ErrInvalidInput):
@@ -269,12 +288,13 @@ func closeAll(closers []io.Closer) {
 
 func (h *DiaryHandler) RegisterRoutes(r fiber.Router) {
 	g := r.Group("/diary")
-	g.Post("/", h.Insert)
-	g.Get("/", h.GetByDate)
-	g.Delete("/:id", h.Delete)
-	g.Put("/:id", h.Edit)
 	g.Get("/search", h.Search)
 	g.Get("/attachments", h.AllAttachments)
 	g.Get("/attachments/:key/:size", h.GetAttachment)
 	g.Get("/atemporal", h.GetAtemporal)
+	g.Get("/:id", h.GetById)
+	g.Post("/", h.Insert)
+	g.Get("/", h.GetByDate)
+	g.Delete("/:id", h.Delete)
+	g.Put("/:id", h.Edit)
 }

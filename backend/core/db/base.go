@@ -13,4 +13,5 @@ type DiaryDataBase interface {
 	Edit(ctx context.Context, entry core.DiaryEntry) ([]string, error)
 	AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error)
 	GetAtemporal(ctx context.Context, limit int, offset int) ([]core.DiaryEntry, bool, error)
+	GetById(ctx context.Context, id int) (core.DiaryEntry, error)
 }

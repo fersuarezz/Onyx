@@ -166,6 +166,19 @@ func (d *DiaryService) GetAtemporal(ctx context.Context, limit int, offset int) 
 	return entries, hasMore, nil
 }
 
+func (d *DiaryService) GetById(ctx context.Context, id int) (core.DiaryEntry, error) {
+	entry, err := d.db.GetById(ctx, id)
+	if err != nil {
+		if errors.Is(err, core.ErrNotFound) {
+			return core.DiaryEntry{}, core.ErrNotFound
+		}
+
+		return core.DiaryEntry{}, fmt.Errorf("%w: %w", core.ErrDatabase, err)
+	}
+
+	return entry, nil
+}
+
 func (d *DiaryService) GetAttachmentPath(key string, size string) (string, error) {
 	k, err := uuid.Parse(key)
 	if err != nil {
