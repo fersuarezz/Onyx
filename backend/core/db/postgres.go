@@ -223,7 +223,7 @@ func (db *PostgresDiary) AllAttachments(ctx context.Context, limit int, offset i
 }
 
 func (db *PostgresDiary) GetAtemporal(ctx context.Context, limit int, offset int) ([]core.DiaryEntry, bool, error) {
-	query := `	SELECT d.id, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
+	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
 				WHERE d.date IS NULL
