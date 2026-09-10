@@ -1,0 +1,15 @@
+# Secretos: las variables llegan por el compose, no dentro de la imagen.
+.env
+.env.*
+!.env.example
+
+# Datos locales y binarios: no tienen que viajar al contexto de build.
+media/
+uploads/
+onyx
+*.exe
+
+scripts/
+
+# Tests con testcontainers: no se ejecutan en el build.
+**/*_test.go

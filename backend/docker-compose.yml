@@ -4,18 +4,35 @@ services:
     container_name: onyx-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: onyx
-      POSTGRES_PASSWORD: onyx
-      POSTGRES_DB: onyx
+      POSTGRES_USER: ${POSTGRES_USER:-onyx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-onyx}
+      POSTGRES_DB: ${POSTGRES_DB:-onyx}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U onyx -d onyx"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-onyx} -d ${POSTGRES_DB:-onyx}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  api:
+    build: .
+    container_name: onyx-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-onyx}:${POSTGRES_PASSWORD:-onyx}@db:5432/${POSTGRES_DB:-onyx}?sslmode=disable
+      PORT: "8080"
+      MEDIA_ROOT: /data/media
+    ports:
+      - "8080:8080"
+    volumes:
+      - media:/data/media
+
 volumes:
   pgdata:
+  media:
