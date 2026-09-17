@@ -21,6 +21,7 @@ const state = {
   entries: [], // día actual
   notes: [], // atemporales
   notesHasMore: false,
+  prevDayEmpty: null, // null = sin comprobar / no aplica
 
   query: "",
   results: [],
@@ -37,6 +38,13 @@ const state = {
 
 function todayISO() {
   const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function prevISO(iso) {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() - 1);
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
@@ -92,6 +100,20 @@ async function loadDay() {
   const qs = new URLSearchParams({ date: state.date, ignore_year: String(state.ignoreYear) });
   const data = await api(`/?${qs}`);
   state.entries = data.entries || [];
+  await checkPrevDay();
+}
+
+// Solo interesa cuando la entrada que vas a escribir sería la primera del día.
+// Es información secundaria: si la petición falla, no se avisa de nada.
+async function checkPrevDay() {
+  state.prevDayEmpty = null;
+  if (state.ignoreYear || state.entries.length) return;
+
+  const qs = new URLSearchParams({ date: prevISO(state.date), ignore_year: "false" });
+  try {
+    const data = await api(`/?${qs}`);
+    state.prevDayEmpty = (data.entries || []).length === 0;
+  } catch (_) { /* sin aviso */ }
 }
 
 async function loadNotes() {
@@ -233,6 +255,17 @@ function composerHTML(placeholder) {
     <input type="file" id="file-input" accept="image/*" multiple hidden>`;
 }
 
+function noticeHTML() {
+  if (state.prevDayEmpty !== true) return "";
+  const prev = prevISO(state.date);
+  const label = prev === prevISO(todayISO()) ? "Ayer" : `El ${fmtChip(prev)}`;
+  return `
+    <div class="notice">
+      <span>${esc(label)} no escribiste nada en el diario.</span>
+      <button data-act="dismiss-notice" aria-label="Ocultar aviso">&times;</button>
+    </div>`;
+}
+
 function listHTML(entries, opts) {
   if (!entries.length) {
     return `<div class="empty">${esc(opts.emptyText)}</div>`;
@@ -345,6 +378,7 @@ function renderView() {
     : esc(fmtLong(state.date).toUpperCase());
 
   view.innerHTML = `
+    ${noticeHTML()}
     ${composerHTML("Escribe algo sobre este día…")}
     <div class="pad">
       <div class="section-label">${heading}</div>
@@ -429,6 +463,12 @@ document.addEventListener("click", async (ev) => {
 
   if (act === "pick-files") {
     document.getElementById("file-input").click();
+    return;
+  }
+
+  if (act === "dismiss-notice") {
+    state.prevDayEmpty = false;
+    renderView();
     return;
   }
 

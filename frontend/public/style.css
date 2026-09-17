@@ -149,6 +149,32 @@ a:hover { color: var(--text); }
 
 .pad { padding: 16px 18px 24px; }
 
+/* ---------- aviso ---------- */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 18px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--accent-soft);
+  font: 500 13px/1.4 "Manrope", sans-serif;
+  color: var(--accent);
+}
+
+.notice span { flex: 1; min-width: 0; }
+
+.notice button {
+  flex: none;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font: 700 16px/1 "Manrope", sans-serif;
+  color: var(--sub);
+  cursor: pointer;
+}
+
 /* ---------- composer ---------- */
 .composer {
   margin: 16px 18px 0;
