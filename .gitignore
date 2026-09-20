@@ -44,6 +44,7 @@ uploads/
 backend/media/
 backend/uploads/
 .temp/
+backups/
 
 # Dumps y bases de datos locales
 *.sql.gz

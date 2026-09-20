@@ -11,6 +11,10 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - dbdump:/dump
+    labels:
+      - docker-volume-backup.exec-label=onyx
+      - docker-volume-backup.archive-pre=/bin/sh -c 'rm -f /dump/onyx.sql && pg_dump -U ${POSTGRES_USER:-onyx} -d ${POSTGRES_DB:-onyx} -f /dump/onyx.sql'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-onyx} -d ${POSTGRES_DB:-onyx}"]
       interval: 5s
@@ -32,7 +36,29 @@ services:
       - "8080:8080"
     volumes:
       - media:/data/media
+    
+  backup:
+    image: offen/docker-volume-backup:v2
+    container_name: onyx-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      BACKUP_CRON_EXPRESSION: "0 3 * * 0" # Domingos a las 3:00
+      BACKUP_FILENAME: "onyx-%Y-%m-%dT%H-%M-%S.{{ .Extension }}"
+      BACKUP_RETENTION_DAYS: "28"
+      BACKUP_PRUNING_PREFIX: "onyx-"
+      EXEC_LABEL: onyx
+      TZ: Europe/Madrid
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - dbdump:/backup/db:ro
+      - media:/backup/media:ro
+      - ./backups:/archive
+
 
 volumes:
   pgdata:
   media:
+  dbdump:
