@@ -1,0 +1,11 @@
+include:
+  - backend/docker-compose.yml
+  - frontend/docker-compose.yml
+volumes:
+  pgdata:
+    name: backend_pgdata
+  media:
+    name: backend_media
+  dbdump:
+    name: backend_dbdump
+
