@@ -193,6 +193,9 @@ func (h *DiaryHandler) GetAttachment(c *fiber.Ctx) error {
 	}
 
 	size, err := file.Seek(0, io.SeekEnd)
+	if err == nil {
+		_, err = file.Seek(0, io.SeekStart)
+	}
 	if err != nil {
 		file.Close()
 		return HandleError(fmt.Errorf("%w: %w", domain.ErrFileSystem, err))
