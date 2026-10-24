@@ -1,0 +1,52 @@
+name: checks code integrity and tests
+on: 
+  pull_request:
+    paths:
+        - 'backend/**'
+        - '.github/workflows/ci.yml'
+  push:
+    branches: main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Download the repo
+        uses: actions/checkout@v5
+      
+      - name: Install go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      
+      - name: Go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code
+      
+      - name: Go vet
+        run: go vet ./...
+      
+      - name: Go build
+        run: go build ./...
+      
+      - name: Go tests
+        run: go test -v ./...
+
+  docker:
+    runs-on: ubuntu
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Download repo
+        uses: actions/checkout@v5
+
+      - name: Docker builds
+        run: docker build .
