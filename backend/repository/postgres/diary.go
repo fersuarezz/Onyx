@@ -1,25 +1,31 @@
-package db
+package postgres
 
 import (
 	"context"
 	"fmt"
-	"onyx/core"
+	"onyx/domain"
+	"onyx/service/diary"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
 
-func NewPostgresDiary(pool core.Querier) *PostgresDiary {
-	return &PostgresDiary{pool: pool}
+type Querier interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 }
 
-type PostgresDiary struct {
-	pool core.Querier
+func NewDiaryRepository(pool Querier) *DiaryRepository {
+	return &DiaryRepository{pool: pool}
 }
 
-var _ DiaryDataBase = (*PostgresDiary)(nil)
+type DiaryRepository struct {
+	pool Querier
+}
 
-func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int, error) {
+var _ diary.Repository = (*DiaryRepository)(nil)
+
+func (db *DiaryRepository) Insert(ctx context.Context, entry diary.Entry) (int, error) {
 	tx, err := db.pool.Begin(ctx)
 
 	if err != nil {
@@ -46,7 +52,7 @@ func (db *PostgresDiary) Insert(ctx context.Context, entry core.DiaryEntry) (int
 	return id, tx.Commit(ctx)
 }
 
-func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYear bool) ([]core.DiaryEntry, error) {
+func (db *DiaryRepository) GetByDate(ctx context.Context, date domain.Date, ignoreYear bool) ([]diary.Entry, error) {
 	query := ``
 	args := []any{}
 
@@ -74,7 +80,7 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYe
 		return nil, fmt.Errorf("querying diary entries: %w", err)
 	}
 
-	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[core.DiaryEntry])
+	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[diary.Entry])
 	if err != nil {
 		return nil, fmt.Errorf("parsing rows to struct: %w", err)
 	}
@@ -84,7 +90,7 @@ func (db *PostgresDiary) GetByDate(ctx context.Context, date core.Date, ignoreYe
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
-func (db *PostgresDiary) Search(ctx context.Context, text string, limit int, offset int) ([]core.DiaryEntry, bool, error) {
+func (db *DiaryRepository) Search(ctx context.Context, text string, limit int, offset int) ([]diary.Entry, bool, error) {
 	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
@@ -99,7 +105,7 @@ func (db *PostgresDiary) Search(ctx context.Context, text string, limit int, off
 		return nil, false, fmt.Errorf("querying diary entries: %w", err)
 	}
 
-	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[core.DiaryEntry])
+	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[diary.Entry])
 	if err != nil {
 		return nil, false, fmt.Errorf("parsing rows to struct: %w", err)
 	}
@@ -112,7 +118,7 @@ func (db *PostgresDiary) Search(ctx context.Context, text string, limit int, off
 	return entries, hasMore, nil
 }
 
-func (db *PostgresDiary) Delete(ctx context.Context, id int) ([]string, error) {
+func (db *DiaryRepository) Delete(ctx context.Context, id int) ([]string, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("pool.Begin: %w", err)
@@ -142,7 +148,7 @@ func (db *PostgresDiary) Delete(ctx context.Context, id int) ([]string, error) {
 	}
 
 	if tag.RowsAffected() == 0 {
-		return nil, core.ErrNotFound
+		return nil, domain.ErrNotFound
 	}
 
 	err = tx.Commit(ctx)
@@ -153,7 +159,7 @@ func (db *PostgresDiary) Delete(ctx context.Context, id int) ([]string, error) {
 	return keys, nil
 }
 
-func (db *PostgresDiary) Edit(ctx context.Context, id int, date *core.Date, text *string, keys []string) ([]string, error) {
+func (db *DiaryRepository) Edit(ctx context.Context, id int, date *domain.Date, text *string, keys []string) ([]string, error) {
 	tx, err := db.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("pool.Begin: %w", err)
@@ -168,7 +174,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, id int, date *core.Date, text
 		return nil, fmt.Errorf("update diary entry: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return nil, core.ErrNotFound
+		return nil, domain.ErrNotFound
 	}
 
 	// Update attachments
@@ -196,7 +202,7 @@ func (db *PostgresDiary) Edit(ctx context.Context, id int, date *core.Date, text
 	return orphans, tx.Commit(ctx)
 }
 
-func (db *PostgresDiary) AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error) {
+func (db *DiaryRepository) AllAttachments(ctx context.Context, limit int, offset int) ([]string, bool, error) {
 	query := `SELECT a.key FROM attachments AS a
 			JOIN diary_entries AS d ON a.entry_id = d.id
 			ORDER BY COALESCE(d.date, d.created_at::date) DESC, d.id DESC, a.key
@@ -222,7 +228,7 @@ func (db *PostgresDiary) AllAttachments(ctx context.Context, limit int, offset i
 	return atts, hasMore, nil
 }
 
-func (db *PostgresDiary) GetAtemporal(ctx context.Context, limit int, offset int) ([]core.DiaryEntry, bool, error) {
+func (db *DiaryRepository) GetAtemporal(ctx context.Context, limit int, offset int) ([]diary.Entry, bool, error) {
 	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
@@ -236,7 +242,7 @@ func (db *PostgresDiary) GetAtemporal(ctx context.Context, limit int, offset int
 		return nil, false, fmt.Errorf("querying diary entries: %w", err)
 	}
 
-	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[core.DiaryEntry])
+	entries, err := pgx.CollectRows(rows, pgx.RowToStructByName[diary.Entry])
 	if err != nil {
 		return nil, false, fmt.Errorf("parsing rows to struct: %w", err)
 	}
@@ -249,7 +255,7 @@ func (db *PostgresDiary) GetAtemporal(ctx context.Context, limit int, offset int
 	return entries, hasMore, nil
 }
 
-func (db *PostgresDiary) GetById(ctx context.Context, id int) (core.DiaryEntry, error) {
+func (db *DiaryRepository) GetById(ctx context.Context, id int) (diary.Entry, error) {
 	query := `	SELECT d.id, d.date, d.text, COALESCE(array_agg(a.key ORDER BY a.key) FILTER (WHERE a.key is not NULL), '{}') AS keys
 				FROM diary_entries AS d 
 				LEFT JOIN attachments AS a ON d.id = a.entry_id 
@@ -258,16 +264,16 @@ func (db *PostgresDiary) GetById(ctx context.Context, id int) (core.DiaryEntry, 
 
 	rows, err := db.pool.Query(ctx, query, id)
 	if err != nil {
-		return core.DiaryEntry{}, fmt.Errorf("querying diary entries: %w", err)
+		return diary.Entry{}, fmt.Errorf("querying diary entries: %w", err)
 	}
 
-	entry, err := pgx.CollectRows(rows, pgx.RowToStructByName[core.DiaryEntry])
+	entry, err := pgx.CollectRows(rows, pgx.RowToStructByName[diary.Entry])
 	if err != nil {
-		return core.DiaryEntry{}, fmt.Errorf("parsing rows to struct: %w", err)
+		return diary.Entry{}, fmt.Errorf("parsing rows to struct: %w", err)
 	}
 
 	if len(entry) == 0 {
-		return core.DiaryEntry{}, core.ErrNotFound
+		return diary.Entry{}, domain.ErrNotFound
 	}
 
 	return entry[0], nil

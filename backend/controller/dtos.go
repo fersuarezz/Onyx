@@ -1,12 +1,13 @@
-package api
+package controller
 
 import (
-	"onyx/core"
+	"onyx/domain"
+	"onyx/service/diary"
 )
 
 type InsertRequest struct {
-	Date core.Date `form:"date"`
-	Text string    `form:"text"`
+	Date domain.Date `form:"date"`
+	Text string      `form:"text"`
 }
 
 type InsertResponse struct {
@@ -14,12 +15,12 @@ type InsertResponse struct {
 }
 
 type GetByDateRequest struct {
-	Date       core.Date `query:"date"`
-	IgnoreYear bool      `query:"ignore_year"`
+	Date       domain.Date `query:"date"`
+	IgnoreYear bool        `query:"ignore_year"`
 }
 
 type GetByDateResponse struct {
-	Entries []core.DiaryEntry `json:"entries"`
+	Entries []diary.Entry `json:"entries"`
 }
 
 type SearchRequest struct {
@@ -29,13 +30,13 @@ type SearchRequest struct {
 }
 
 type SearchResponse struct {
-	Entries []core.DiaryEntry `json:"entries"`
-	HasMore bool              `json:"has_more"`
+	Entries []diary.Entry `json:"entries"`
+	HasMore bool          `json:"has_more"`
 }
 
 type EditRequest struct {
-	Date *core.Date `form:"date"`
-	Text *string    `form:"text"`
+	Date *domain.Date `form:"date"`
+	Text *string      `form:"text"`
 }
 
 type AllAttachmentsRequest struct {
@@ -59,10 +60,10 @@ type GetAtemporalEntriesRequest struct {
 }
 
 type GetAtemporalEntriesResponse struct {
-	Entries []core.DiaryEntry `json:"entries"`
-	HasMore bool              `json:"has_more"`
+	Entries []diary.Entry `json:"entries"`
+	HasMore bool          `json:"has_more"`
 }
 
 type GetByIdResponse struct {
-	Entry core.DiaryEntry `json:"entry"`
+	Entry diary.Entry `json:"entry"`
 }

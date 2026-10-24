@@ -1,4 +1,4 @@
-package core
+package domain
 
 import (
 	"database/sql/driver"
@@ -71,7 +71,7 @@ func (d *Date) Scan(src any) error {
 	t, ok := src.(time.Time)
 
 	if !ok {
-		return fmt.Errorf("core.Date: no se puede escanear %T", src)
+		return fmt.Errorf("domain.Date: no se puede escanear %T", src)
 	}
 
 	*d = DateOf(t)

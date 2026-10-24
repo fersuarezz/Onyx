@@ -1,4 +1,4 @@
-package api
+package controller
 
 import (
 	"context"
@@ -7,21 +7,19 @@ import (
 	"io"
 	"log/slog"
 	"mime/multipart"
-	"onyx/core"
-	"onyx/core/db"
-	"onyx/core/storage"
-	"onyx/service"
+	"onyx/domain"
+	"onyx/service/diary"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 type DiaryHandler struct {
-	service *service.DiaryService
+	service *diary.Service
 }
 
-func NewDiaryHandler(db db.DiaryDataBase, storage storage.Storage) *DiaryHandler {
-	return &DiaryHandler{service: service.NewDiaryService(db, storage)}
+func NewDiaryHandler(svc *diary.Service) *DiaryHandler {
+	return &DiaryHandler{service: svc}
 }
 
 func (h *DiaryHandler) Insert(c *fiber.Ctx) error {
@@ -29,12 +27,12 @@ func (h *DiaryHandler) Insert(c *fiber.Ctx) error {
 
 	err := c.BodyParser(&req)
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: cuerpo inválido", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", domain.ErrInvalidInput))
 	}
 
 	form, err := c.MultipartForm()
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: cuerpo inválido", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", domain.ErrInvalidInput))
 	}
 
 	files := form.File["files"]
@@ -65,7 +63,7 @@ func (h *DiaryHandler) GetByDate(c *fiber.Ctx) error {
 
 	err := c.QueryParser(&req)
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: parámetros inválidos", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", domain.ErrInvalidInput))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), 5*time.Second)
@@ -87,7 +85,7 @@ func (h *DiaryHandler) Search(c *fiber.Ctx) error {
 
 	err := c.QueryParser(&req)
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: parámetros inválidos", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", domain.ErrInvalidInput))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
@@ -108,7 +106,7 @@ func (h *DiaryHandler) Search(c *fiber.Ctx) error {
 func (h *DiaryHandler) Delete(c *fiber.Ctx) error {
 	id, err := c.ParamsInt("id")
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: id inválido", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: id inválido", domain.ErrInvalidInput))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
@@ -125,19 +123,19 @@ func (h *DiaryHandler) Delete(c *fiber.Ctx) error {
 func (h *DiaryHandler) Edit(c *fiber.Ctx) error {
 	id, err := c.ParamsInt("id")
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: id inválido", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: id inválido", domain.ErrInvalidInput))
 	}
 
 	var req EditRequest
 
 	err = c.BodyParser(&req)
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: cuerpo inválido", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", domain.ErrInvalidInput))
 	}
 
 	form, err := c.MultipartForm()
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: cuerpo inválido", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", domain.ErrInvalidInput))
 	}
 
 	files := form.File["files"]
@@ -145,7 +143,7 @@ func (h *DiaryHandler) Edit(c *fiber.Ctx) error {
 	defer closeAll(closers)
 
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: cuerpo inválido", core.ErrFileSystem))
+		return HandleError(fmt.Errorf("%w: cuerpo inválido", domain.ErrFileSystem))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
@@ -164,7 +162,7 @@ func (h *DiaryHandler) AllAttachments(c *fiber.Ctx) error {
 
 	err := c.QueryParser(&req)
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: query inválida", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: query inválida", domain.ErrInvalidInput))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
@@ -186,16 +184,23 @@ func (h *DiaryHandler) GetAttachment(c *fiber.Ctx) error {
 
 	err := c.ParamsParser(&req)
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: params inválidos", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: params inválidos", domain.ErrInvalidInput))
 	}
 
-	path, err := h.service.GetAttachmentPath(req.Key, req.Size)
+	file, err := h.service.GetAttachment(req.Key, req.Size)
 	if err != nil {
 		return HandleError(err)
 	}
 
+	size, err := file.Seek(0, io.SeekEnd)
+	if err != nil {
+		file.Close()
+		return HandleError(fmt.Errorf("%w: %w", domain.ErrFileSystem, err))
+	}
+
 	c.Set(fiber.HeaderCacheControl, "public, max-age=31536000, immutable")
-	return c.SendFile(path)
+	c.Set(fiber.HeaderContentType, "image/jpeg")
+	return c.SendStream(file, int(size)) // Auto closes
 }
 
 func (h *DiaryHandler) GetAtemporal(c *fiber.Ctx) error {
@@ -203,7 +208,7 @@ func (h *DiaryHandler) GetAtemporal(c *fiber.Ctx) error {
 
 	err := c.QueryParser(&req)
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: parámetros inválidos", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", domain.ErrInvalidInput))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
@@ -223,7 +228,7 @@ func (h *DiaryHandler) GetAtemporal(c *fiber.Ctx) error {
 func (h *DiaryHandler) GetById(c *fiber.Ctx) error {
 	id, err := c.ParamsInt("id")
 	if err != nil {
-		return HandleError(fmt.Errorf("%w: parámetros inválidos", core.ErrInvalidInput))
+		return HandleError(fmt.Errorf("%w: parámetros inválidos", domain.ErrInvalidInput))
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), time.Second*5)
@@ -241,18 +246,18 @@ func (h *DiaryHandler) GetById(c *fiber.Ctx) error {
 
 func HandleError(err error) error {
 	switch {
-	case errors.Is(err, core.ErrInvalidInput):
+	case errors.Is(err, domain.ErrInvalidInput):
 		return fiber.NewError(fiber.StatusBadRequest, "Datos de entrada inválidos")
 	case errors.Is(err, context.DeadlineExceeded):
 		slog.Error("timeout", "err", err)
 		return fiber.NewError(fiber.StatusGatewayTimeout, "La petición tardó demasiado")
-	case errors.Is(err, core.ErrDatabase):
+	case errors.Is(err, domain.ErrDatabase):
 		slog.Error("error de base de datos", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
-	case errors.Is(err, core.ErrFileSystem):
+	case errors.Is(err, domain.ErrFileSystem):
 		slog.Error("error de file system", "err", err)
 		return fiber.NewError(fiber.StatusInternalServerError, "Error interno")
-	case errors.Is(err, core.ErrNotFound):
+	case errors.Is(err, domain.ErrNotFound):
 		slog.Error("Not found", "err", err)
 		return fiber.NewError(fiber.StatusNotFound, "Archivo no encontrado")
 	default:
@@ -268,7 +273,7 @@ func multipartsToReaders(multiparts []*multipart.FileHeader) ([]io.ReadSeeker, [
 	for _, m := range multiparts {
 		src, err := m.Open()
 		if err != nil {
-			return nil, closers, fmt.Errorf("%w: %w", core.ErrFileSystem, err)
+			return nil, closers, fmt.Errorf("%w: %w", domain.ErrFileSystem, err)
 		}
 		closers = append(closers, src)
 		seekers = append(seekers, src)
