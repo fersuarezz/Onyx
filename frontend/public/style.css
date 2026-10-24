@@ -109,7 +109,8 @@ a:hover { color: var(--text); }
 .chip.ghost { background: transparent; color: var(--sub); }
 .chip.on { background: var(--accent); color: #fff; }
 
-/* input[type=date] transparente encima del chip: abre el selector nativo */
+/* input[type=date] invisible bajo el chip: el chip lo abre con showPicker()
+   y el selector se ancla aquí. No recibe toques. */
 .date-pick { position: relative; display: inline-flex; }
 
 .date-pick input[type="date"] {
@@ -120,7 +121,7 @@ a:hover { color: var(--text); }
   opacity: 0;
   border: none;
   padding: 0;
-  cursor: pointer;
+  pointer-events: none;
   -webkit-appearance: none;
   appearance: none;
 }

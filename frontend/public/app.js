@@ -16,7 +16,7 @@ const state = {
   section: "diario", // "diario" | "notas"
   tab: "hoy", // "hoy" | "buscar"
   date: todayISO(),
-  ignoreYear: false,
+  ignoreYear: true,
 
   entries: [], // día actual
   notes: [], // atemporales
@@ -42,12 +42,15 @@ function todayISO() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-function prevISO(iso) {
+function shiftISO(iso, days) {
   const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() + days);
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+function prevISO(iso) { return shiftISO(iso, -1); }
+function nextISO(iso) { return shiftISO(iso, 1); }
 
 function fmtChip(iso) {
   if (iso === todayISO()) return "Hoy";
@@ -107,7 +110,8 @@ async function loadDay() {
 // Es información secundaria: si la petición falla, no se avisa de nada.
 async function checkPrevDay() {
   state.prevDayEmpty = null;
-  if (state.ignoreYear || state.entries.length) return;
+  // Con "Otros años" activo, entries trae también las de otros años: solo cuentan las de este día.
+  if (state.entries.some((e) => e.date === state.date)) return;
 
   const qs = new URLSearchParams({ date: prevISO(state.date), ignore_year: "false" });
   try {
@@ -285,15 +289,15 @@ function renderTopbar() {
     return;
   }
 
-  // El <input type="date"> va superpuesto y transparente sobre el chip: así el
-  // toque abre directamente el selector nativo del móvil, sin showPicker().
+  // El chip es un botón que abre el selector con showPicker(). El <input type="date">
+  // va debajo, invisible y sin recibir toques, solo para que el selector se ancle al chip.
   const dateControls = state.tab === "hoy"
     ? `<div class="topbar-tools">
          <button class="chip ${state.ignoreYear ? "on" : "ghost"}" data-act="toggle-year"
                  title="Ver este día en todos los años">Otros años</button>
          <span class="date-pick">
-           <span class="chip">${esc(fmtChip(state.date))}</span>
-           <input type="date" id="date-input" value="${state.date}" max="${todayISO()}" aria-label="Elegir fecha">
+           <button class="chip" data-act="pick-date" aria-label="Elegir fecha">${esc(fmtChip(state.date))}</button>
+           <input type="date" id="date-input" value="${state.date}" max="${todayISO()}" tabindex="-1" aria-hidden="true">
          </span>
        </div>`
     : "";
@@ -484,6 +488,18 @@ document.addEventListener("click", async (ev) => {
     return;
   }
 
+  if (act === "pick-date") {
+    const input = document.getElementById("date-input");
+    try {
+      input.showPicker();
+    } catch (_) {
+      // Navegadores sin showPicker()
+      input.focus();
+      input.click();
+    }
+    return;
+  }
+
   if (act === "toggle-year") {
     state.ignoreYear = !state.ignoreYear;
     await refresh();
@@ -519,7 +535,6 @@ document.addEventListener("click", async (ev) => {
     if (date) {
       state.section = "diario";
       state.tab = "hoy";
-      state.ignoreYear = false;
       state.date = date;
       await refresh();
     } else {
@@ -554,9 +569,39 @@ document.addEventListener("change", async (ev) => {
 
   if (ev.target.id === "date-input" && ev.target.value) {
     state.date = ev.target.value;
-    state.ignoreYear = false;
     await refresh();
   }
+});
+
+// Deslizar en horizontal sobre el día: izquierda = día siguiente, derecha = anterior.
+const SWIPE_MIN_PX = 60;
+let touchStart = null;
+
+document.getElementById("view").addEventListener("touchstart", (ev) => {
+  // Sin swipe con varios dedos (zoom) ni al tocar campos de texto (mover el cursor).
+  if (ev.touches.length !== 1 || ev.target.closest("textarea, input")) {
+    touchStart = null;
+    return;
+  }
+  touchStart = { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
+}, { passive: true });
+
+document.getElementById("view").addEventListener("touchend", async (ev) => {
+  if (!touchStart) return;
+  const dx = ev.changedTouches[0].clientX - touchStart.x;
+  const dy = ev.changedTouches[0].clientY - touchStart.y;
+  touchStart = null;
+
+  if (state.section !== "diario" || state.tab !== "hoy" || state.busy) return;
+  // Tiene que ser claramente horizontal para no confundirlo con el scroll.
+  if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+
+  const target = dx < 0 ? nextISO(state.date) : prevISO(state.date);
+  if (target > todayISO()) return;
+
+  state.date = target;
+  state.editingId = null;
+  await refresh();
 });
 
 refresh();
