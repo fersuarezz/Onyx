@@ -6,11 +6,7 @@ services:
     ports:
       - "8081:8081"
     environment:
-      # Dónde escucha el backend Go. Por defecto, en el host que corre Docker.
-      # Si el backend también está en Docker, pon aquí su nombre de servicio.
-      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-host.docker.internal:8080}
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-api:8080}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./public:/srv:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"

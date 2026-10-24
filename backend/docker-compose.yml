@@ -7,8 +7,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-onyx}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-onyx}
       POSTGRES_DB: ${POSTGRES_DB:-onyx}
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - dbdump:/dump
@@ -32,8 +30,6 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-onyx}:${POSTGRES_PASSWORD:-onyx}@db:5432/${POSTGRES_DB:-onyx}?sslmode=disable
       PORT: "8080"
       MEDIA_ROOT: /data/media
-    ports:
-      - "8080:8080"
     volumes:
       - media:/data/media
     

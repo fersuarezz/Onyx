@@ -2,7 +2,7 @@
 #
 # El backend no sabe nada del frontend y no tiene CORS: al exponer ambos bajo
 # el mismo origen (mismo host y puerto), el navegador no necesita CORS.
-# Backend y frontend siguen siendo dos despliegues independientes.
+# Llega al backend por la red interna de Docker (BACKEND_UPSTREAM, ver docker-compose.yml).
 
 {
 	admin off
@@ -13,11 +13,11 @@
 	encode gzip
 
 	handle /api/* {
-		reverse_proxy {$BACKEND_UPSTREAM:host.docker.internal:8080}
+		reverse_proxy {$BACKEND_UPSTREAM:api:8080}
 	}
 
 	handle /health {
-		reverse_proxy {$BACKEND_UPSTREAM:host.docker.internal:8080}
+		reverse_proxy {$BACKEND_UPSTREAM:api:8080}
 	}
 
 	handle {
