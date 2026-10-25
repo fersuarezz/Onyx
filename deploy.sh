@@ -15,7 +15,9 @@ fi
 
 echo "Desplegando $SHA"
 
-docker compose up -d --build
+export ONYX_TAG="$SHA"
+docker compose pull api
+docker compose up -d --no-build
 docker compose restart web # Restarts Caddy
 
 echo "Deploy completado"
