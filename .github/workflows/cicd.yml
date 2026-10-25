@@ -10,15 +10,16 @@ concurrency:
 jobs:
   ci-go:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: backend
     steps:
       - name: Download the repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
       - name: Install go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
@@ -43,13 +44,14 @@ jobs:
           git diff --exit-code
 
   ci-docker:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
       - name: Download repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Docker builds
         run: docker build .
@@ -57,28 +59,29 @@ jobs:
   cd:
     runs-on: ubuntu-latest
     needs: [ci-go, ci-docker]
+    timeout-minutes: 10
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
       SERVER_HOST: ${{ vars.SERVER_HOST }}
       SERVER_USER: ${{ vars.SERVER_USER }}
       SERVER_PATH: ${{ vars.SERVER_PATH }}
+      DEPLOY_SHA: ${{ github.sha }}
     environment:
       name: prod
 
     steps:
       - name: Connect to tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
       
       - name: Deploy
-        run: |
+        run: | # Connects, fetches and checkouts to the push commit, and executes deploy.sh
           ssh -o StrictHostKeyChecking=accept-new "$SERVER_USER@$SERVER_HOST" \
-            "cd '$SERVER_PATH' && git pull --ff-only && docker compose up -d --build" \
-            "&& docker compose restart web"
-      
+            "cd '$SERVER_PATH' && git fetch origin && git checkout --detach '$DEPLOY_SHA' && ./deploy.sh '$DEPLOY_SHA'"
+
       - name: health-check
         run: |
           curl --fail --silent --show-error \
