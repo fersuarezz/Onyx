@@ -21,7 +21,8 @@ A personal app suite made in Go. Currently it is just a diary app. Applying good
 
 
 ## Stack
-- Backend: Go, PostgreSQL, Docker
+- Backend: Go, PostgreSQL
+- DevOps: GitHub Actions, GHCR, Docker, Tailscale
 - Frontend: JS, HTML, CSS, Caddy
 
 ## Quick start
@@ -31,7 +32,7 @@ Run:
 ```bash
 git clone https://github.com/fersuarezz/Onyx.git Onyx
 cd Onyx
-docker compose up --build
+docker compose up
 ```
 
 Open http://127.0.0.1:8081  
@@ -50,7 +51,6 @@ flowchart LR
     media -.-> backup
 ```
 
-### Deployment
 - **Caddy** serves the frontend and proxies `/api` to the backend. Only Caddy is exposed. 
 - **Backups** run every Sunday at 3:00: a `pg_dump` and the media volume are stored in `./backups`.
 - **Migrations** are applied automatically when the API starts.
@@ -71,9 +71,10 @@ backend/
 ```
 
 
-### Testing and CI
-- Repository tests run against a real PostgreSQL instance created with **Testcontainers**.
-- **GitHub Actions** runs on every push and PR touching the backend: `go mod tidy` check, `go vet`, build, tests, `gofmt` check and a Docker image build.
+### Testing and CI/CD
+- Repository tests run against a real PostgreSQL instance created with Testcontainers.
+- GitHub Actions runs on push and PR: `go mod tidy` check, `go vet`, build, tests, `gofmt` check and a Docker image build.
+- The Docker image is uploaded to GHCR and pulled by the server, checking the commit SHA
 
 
 ## Disclaimer
