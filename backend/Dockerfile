@@ -5,7 +5,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /onyx .
 
-FROM alpine:3.20
+FROM alpine:3.24
 RUN adduser -D -u 10001 onyx \
     && mkdir -p /data/media \
     && chown onyx /data/media
